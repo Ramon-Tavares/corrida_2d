@@ -1,31 +1,47 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta name="viewport"
+content="width=device-width,
+initial-scale=1.0,
+maximum-scale=1.0,
+user-scalable=no">
+
 <title>Corrida 2D</title>
 
 <style>
-html, body {
+
+html,
+body {
     margin: 0;
     padding: 0;
+
     width: 100%;
     height: 100%;
-    overflow: hidden;
-    background: #111722;
-    font-family: Arial, sans-serif;
-}
 
-body {
+    overflow: hidden;
+
+    background: #111722;
+
+    font-family: Arial, sans-serif;
+
     touch-action: none;
 }
 
 canvas {
     display: block;
+
     width: 100%;
     height: 100%;
+
+    touch-action: none;
 }
+
 </style>
+
 </head>
 
 <body>
@@ -33,68 +49,127 @@ canvas {
 <canvas id="game"></canvas>
 
 <script>
+
 "use strict";
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas =
+    document.getElementById("game");
+
+const ctx =
+    canvas.getContext("2d");
 
 let W = 900;
 let H = 600;
+
 let dpr = 1;
 
+
+/* =========================================================
+   ESTADO DO JOGO
+========================================================= */
+
 let estado = "menu";
+
 let pausado = false;
 
 let pontos = 0;
+
 let vidas = 3;
+
 let velocidade = 5;
+
 let deslocamento = 0;
 
-let recorde = Number(
-    localStorage.getItem("corrida2d_recorde") || 0
-);
+let recorde =
+    Number(
+        localStorage.getItem(
+            "corrida2d_recorde"
+        ) || 0
+    );
+
 
 let jogador = null;
+
 let inimigos = [];
+
 let particulas = [];
 
+
+/* =========================================================
+   CONTROLES
+========================================================= */
+
 const teclado = {
+
     esquerda: false,
-    direita: false,
-    cima: false,
-    baixo: false
+
+    direita: false
 };
 
+
 const toque = {
+
     esquerda: false,
-    direita: false,
-    cima: false,
-    baixo: false
+
+    direita: false
 };
 
 
 /* =========================================================
-   TAMANHO DA TELA
+   CORES DOS CARROS
+========================================================= */
+
+const coresCarros = [
+
+    "#ff3333",
+    "#00aaff",
+    "#ffd000",
+    "#ff6b00",
+    "#9b30ff",
+    "#00d084",
+    "#ff4fa3",
+    "#00d9ff"
+
+];
+
+
+/* =========================================================
+   REDIMENSIONAR
 ========================================================= */
 
 function redimensionar() {
 
-    W = window.innerWidth;
-    H = window.innerHeight;
+    dpr =
+        Math.min(
+            window.devicePixelRatio || 1,
+            2
+        );
 
-    if (W < 500) W = 500;
-    if (H < 400) H = 400;
+    W =
+        window.innerWidth;
 
-    dpr = Math.min(
-        window.devicePixelRatio || 1,
-        2
-    );
+    H =
+        window.innerHeight;
 
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
 
-    canvas.style.width = window.innerWidth + "px";
-    canvas.style.height = window.innerHeight + "px";
+    canvas.width =
+        W * dpr;
+
+    canvas.height =
+        H * dpr;
+
+
+    canvas.style.width =
+        W + "px";
+
+    canvas.style.height =
+        H + "px";
+
 
     ctx.setTransform(
         dpr,
@@ -104,14 +179,8 @@ function redimensionar() {
         0,
         0
     );
-
-    if (jogador) {
-
-        jogador.y = H - 175;
-
-        limitarJogador();
-    }
 }
+
 
 window.addEventListener(
     "resize",
@@ -122,7 +191,7 @@ redimensionar();
 
 
 /* =========================================================
-   RETÂNGULO ARREDONDADO
+   RETÂNGULO
 ========================================================= */
 
 function retangulo(
@@ -130,70 +199,17 @@ function retangulo(
     y,
     largura,
     altura,
-    raio,
     cor
 ) {
 
-    ctx.beginPath();
-
-    ctx.moveTo(
-        x + raio,
-        y
-    );
-
-    ctx.lineTo(
-        x + largura - raio,
-        y
-    );
-
-    ctx.quadraticCurveTo(
-        x + largura,
-        y,
-        x + largura,
-        y + raio
-    );
-
-    ctx.lineTo(
-        x + largura,
-        y + altura - raio
-    );
-
-    ctx.quadraticCurveTo(
-        x + largura,
-        y + altura,
-        x + largura - raio,
-        y + altura
-    );
-
-    ctx.lineTo(
-        x + raio,
-        y + altura
-    );
-
-    ctx.quadraticCurveTo(
-        x,
-        y + altura,
-        x,
-        y + altura - raio
-    );
-
-    ctx.lineTo(
-        x,
-        y + raio
-    );
-
-    ctx.quadraticCurveTo(
-        x,
-        y,
-        x + raio,
-        y
-    );
-
-    ctx.closePath();
-
     ctx.fillStyle = cor;
 
-    ctx.fill();
+    ctx.fillRect(
+        x,
+        y,
+        largura,
+        altura
+    );
 }
 
 
@@ -203,22 +219,23 @@ function retangulo(
 
 function texto(
     mensagem,
-    tamanho,
-    cor,
     x,
-    y
+    y,
+    tamanho,
+    cor = "#ffffff",
+    alinhamento = "center"
 ) {
-
-    ctx.font =
-        "bold " +
-        tamanho +
-        "px Arial";
 
     ctx.fillStyle = cor;
 
-    ctx.textAlign = "center";
+    ctx.font =
+        `bold ${tamanho}px Arial`;
 
-    ctx.textBaseline = "middle";
+    ctx.textAlign =
+        alinhamento;
+
+    ctx.textBaseline =
+        "middle";
 
     ctx.fillText(
         mensagem,
@@ -229,41 +246,14 @@ function texto(
 
 
 /* =========================================================
-   PISTA
-========================================================= */
-
-function pista() {
-
-    const larguraPista =
-        Math.min(
-            560,
-            Math.max(
-                440,
-                W * 0.54
-            )
-        );
-
-    return {
-
-        esquerda:
-            W / 2 -
-            larguraPista / 2,
-
-        direita:
-            W / 2 +
-            larguraPista / 2,
-
-        largura:
-            larguraPista
-    };
-}
-
-
-/* =========================================================
    INICIAR JOGO
 ========================================================= */
 
 function iniciarJogo() {
+
+    estado = "jogando";
+
+    pausado = false;
 
     pontos = 0;
 
@@ -273,23 +263,30 @@ function iniciarJogo() {
 
     deslocamento = 0;
 
-    pausado = false;
+    particulas = [];
+
 
     jogador = {
 
         x:
-            W / 2 - 28,
+            W / 2 - 25,
 
         y:
             H - 175,
 
-        largura: 56,
+        largura:
+            50,
 
-        altura: 92
+        altura:
+            90,
 
+        cor:
+            "#168cff"
     };
 
+
     inimigos = [];
+
 
     for (
         let i = 0;
@@ -297,62 +294,37 @@ function iniciarJogo() {
         i++
     ) {
 
-        inimigos.push(
-            criarInimigo(i)
+        inimigos.push({
+
+            x: 0,
+
+            y: 0,
+
+            largura: 50,
+
+            altura: 90,
+
+            velocidadeExtra:
+                Math.random() * 2,
+
+            cor:
+                coresCarros[
+                    Math.floor(
+                        Math.random() *
+                        coresCarros.length
+                    )
+                ]
+        });
+
+
+        reposicionarInimigo(
+            inimigos[i],
+            true
         );
     }
 
-    particulas = [];
 
     limparControles();
-
-    estado = "jogando";
-}
-
-
-/* =========================================================
-   CRIAR INIMIGO
-========================================================= */
-
-function criarInimigo(indice) {
-
-    const cores = [
-
-        "#2878e8",
-        "#f2cf32",
-        "#ef6c25",
-        "#a447c4",
-        "#20b7b7"
-
-    ];
-
-    const inimigo = {
-
-        x: 0,
-
-        y: 0,
-
-        largura: 56,
-
-        altura: 92,
-
-        velocidade:
-            5 + Math.random() * 3,
-
-        cor:
-            cores[
-                indice %
-                cores.length
-            ]
-
-    };
-
-    reposicionarInimigo(
-        inimigo,
-        true
-    );
-
-    return inimigo;
 }
 
 
@@ -362,31 +334,55 @@ function criarInimigo(indice) {
 
 function reposicionarInimigo(
     inimigo,
-    inicio
+    inicial = false
 ) {
 
-    const r = pista();
-
-    const minimo =
-        r.esquerda + 35;
-
-    const maximo =
-        r.direita -
-        inimigo.largura -
-        35;
-
-    inimigo.x =
-        minimo +
-        Math.random() *
-        Math.max(
-            1,
-            maximo - minimo
+    const estradaLargura =
+        Math.min(
+            500,
+            W * 0.60
         );
 
-    inimigo.y =
-        inicio
-            ? -180 - Math.random() * 700
-            : -180 - Math.random() * 450;
+
+    const estradaEsquerda =
+        W / 2 -
+        estradaLargura / 2;
+
+
+    inimigo.x =
+        estradaEsquerda +
+        Math.random() *
+        (
+            estradaLargura -
+            inimigo.largura
+        );
+
+
+    if (inicial) {
+
+        inimigo.y =
+            -100 -
+            Math.random() * H;
+
+    } else {
+
+        inimigo.y =
+            -100 -
+            Math.random() * 400;
+    }
+
+
+    inimigo.velocidadeExtra =
+        Math.random() * 2;
+
+
+    inimigo.cor =
+        coresCarros[
+            Math.floor(
+                Math.random() *
+                coresCarros.length
+            )
+        ];
 }
 
 
@@ -396,27 +392,363 @@ function reposicionarInimigo(
 
 function limitarJogador() {
 
-    if (!jogador) return;
-
-    const r = pista();
-
-    const minimo =
-        r.esquerda + 25;
-
-    const maximo =
-        r.direita -
-        jogador.largura -
-        25;
-
-    jogador.x =
-        Math.max(
-            minimo,
-            Math.min(
-                maximo,
-                jogador.x
-            )
+    const estradaLargura =
+        Math.min(
+            500,
+            W * 0.60
         );
+
+
+    const estradaEsquerda =
+        W / 2 -
+        estradaLargura / 2;
+
+
+    const estradaDireita =
+        W / 2 +
+        estradaLargura / 2;
+
+
+    if (
+        jogador.x <
+        estradaEsquerda
+    ) {
+
+        jogador.x =
+            estradaEsquerda;
+    }
+
+
+    if (
+        jogador.x +
+        jogador.largura >
+        estradaDireita
+    ) {
+
+        jogador.x =
+            estradaDireita -
+            jogador.largura;
+    }
 }
+
+
+/* =========================================================
+   CONTROLE ATIVO
+========================================================= */
+
+function controleAtivo(
+    controle
+) {
+
+    return (
+        teclado[controle] ||
+        toque[controle]
+    );
+}
+
+
+/* =========================================================
+   LIMPAR CONTROLES
+========================================================= */
+
+function limparControles() {
+
+    teclado.esquerda =
+        false;
+
+    teclado.direita =
+        false;
+
+    toque.esquerda =
+        false;
+
+    toque.direita =
+        false;
+}
+
+
+/* =========================================================
+   TECLADO
+========================================================= */
+
+window.addEventListener(
+    "keydown",
+    function(evento) {
+
+        if (
+            evento.code ===
+                "ArrowLeft" ||
+
+            evento.code ===
+                "ArrowRight" ||
+
+            evento.code ===
+                "Space"
+        ) {
+
+            evento.preventDefault();
+        }
+
+
+        /* ESQUERDA */
+
+        if (
+            evento.code ===
+                "ArrowLeft" ||
+
+            evento.code ===
+                "KeyA"
+        ) {
+
+            teclado.esquerda =
+                true;
+        }
+
+
+        /* DIREITA */
+
+        if (
+            evento.code ===
+                "ArrowRight" ||
+
+            evento.code ===
+                "KeyD"
+        ) {
+
+            teclado.direita =
+                true;
+        }
+
+
+        /* PAUSAR */
+
+        if (
+            evento.code ===
+                "Escape" &&
+
+            estado ===
+                "jogando"
+        ) {
+
+            pausado =
+                !pausado;
+        }
+
+
+        /* INICIAR / REINICIAR */
+
+        if (
+            (
+                evento.code ===
+                    "Enter" ||
+
+                evento.code ===
+                    "Space"
+            ) &&
+
+            (
+                estado ===
+                    "menu" ||
+
+                estado ===
+                    "gameover"
+            )
+        ) {
+
+            iniciarJogo();
+        }
+    }
+);
+
+
+/* =========================================================
+   SOLTAR TECLA
+========================================================= */
+
+window.addEventListener(
+    "keyup",
+    function(evento) {
+
+        if (
+            evento.code ===
+                "ArrowLeft" ||
+
+            evento.code ===
+                "KeyA"
+        ) {
+
+            teclado.esquerda =
+                false;
+        }
+
+
+        if (
+            evento.code ===
+                "ArrowRight" ||
+
+            evento.code ===
+                "KeyD"
+        ) {
+
+            teclado.direita =
+                false;
+        }
+    }
+);
+
+
+/* =========================================================
+   LIMPAR AO SAIR DA JANELA
+========================================================= */
+
+window.addEventListener(
+    "blur",
+    function() {
+
+        limparControles();
+    }
+);
+
+
+/* =========================================================
+   POSIÇÃO DO TOQUE
+========================================================= */
+
+function pontoDoEvento(evento) {
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+
+    return {
+
+        x:
+            evento.clientX -
+            rect.left,
+
+        y:
+            evento.clientY -
+            rect.top
+    };
+}
+
+
+/* =========================================================
+   CONTROLES DE TOQUE
+========================================================= */
+
+function processarToque(
+    evento,
+    pressionado
+) {
+
+    const ponto =
+        pontoDoEvento(evento);
+
+
+    if (!pressionado) {
+
+        limparControles();
+
+        return;
+    }
+
+
+    if (
+        ponto.x <
+        W / 2
+    ) {
+
+        toque.esquerda =
+            true;
+
+        toque.direita =
+            false;
+
+    } else {
+
+        toque.esquerda =
+            false;
+
+        toque.direita =
+            true;
+    }
+}
+
+
+canvas.addEventListener(
+    "pointerdown",
+    function(evento) {
+
+        evento.preventDefault();
+
+
+        if (
+            estado === "menu"
+        ) {
+
+            iniciarJogo();
+
+            return;
+        }
+
+
+        if (
+            estado ===
+            "gameover"
+        ) {
+
+            iniciarJogo();
+
+            return;
+        }
+
+
+        processarToque(
+            evento,
+            true
+        );
+    }
+);
+
+
+canvas.addEventListener(
+    "pointermove",
+    function(evento) {
+
+        if (
+            evento.buttons &&
+            estado ===
+                "jogando"
+        ) {
+
+            processarToque(
+                evento,
+                true
+            );
+        }
+    }
+);
+
+
+canvas.addEventListener(
+    "pointerup",
+    function(evento) {
+
+        evento.preventDefault();
+
+        limparControles();
+    }
+);
+
+
+canvas.addEventListener(
+    "pointercancel",
+    function() {
+
+        limparControles();
+    }
+);
 
 
 /* =========================================================
@@ -425,34 +757,83 @@ function limitarJogador() {
 
 function colidiu(a, b) {
 
-    const margem = 8;
+    const margem = 10;
+
 
     return (
 
         a.x + margem <
-        b.x + b.largura - margem
+        b.x +
+        b.largura -
+        margem
 
         &&
 
-        a.x + a.largura - margem >
-        b.x + margem
+        a.x +
+        a.largura -
+        margem >
+        b.x +
+        margem
 
         &&
 
         a.y + margem <
-        b.y + b.altura - margem
+        b.y +
+        b.altura -
+        margem
 
         &&
 
-        a.y + a.altura - margem >
-        b.y + margem
-
+        a.y +
+        a.altura -
+        margem >
+        b.y +
+        margem
     );
 }
 
 
 /* =========================================================
-   CARRO
+   EXPLOSÃO
+========================================================= */
+
+function criarExplosao(
+    x,
+    y
+) {
+
+    for (
+        let i = 0;
+        i < 25;
+        i++
+    ) {
+
+        particulas.push({
+
+            x: x,
+
+            y: y,
+
+            vx:
+                (
+                    Math.random() -
+                    0.5
+                ) * 8,
+
+            vy:
+                (
+                    Math.random() -
+                    0.5
+                ) * 8,
+
+            vida: 1
+        });
+    }
+}
+
+
+/* =========================================================
+   DESENHAR CARRO
 ========================================================= */
 
 function desenharCarro(
@@ -460,147 +841,314 @@ function desenharCarro(
     y,
     largura,
     altura,
-    cor,
-    jogador
+    cor
 ) {
 
-    /* sombra */
+    /* Sombra */
 
-    retangulo(
+    ctx.fillStyle =
+        "rgba(0,0,0,0.35)";
+
+    ctx.fillRect(
         x + 4,
         y + 5,
         largura,
-        altura,
-        10,
-        "rgba(0,0,0,.35)"
+        altura
     );
 
 
-    /* corpo */
+    /* Corpo */
 
     retangulo(
         x,
         y,
         largura,
         altura,
-        10,
         cor
     );
 
 
-    /* vidro dianteiro */
+    /* Capô */
 
     retangulo(
-        x + 9,
-        y + 14,
-        largura - 18,
-        26,
-        6,
-        "#183b58"
+        x + 6,
+        y + 6,
+        largura - 12,
+        18,
+        cor
     );
 
 
-    /* vidro traseiro */
-
-    retangulo(
-        x + 9,
-        y + altura - 38,
-        largura - 18,
-        22,
-        6,
-        "#102d43"
-    );
-
-
-    /* rodas */
-
-    retangulo(
-        x - 5,
-        y + 18,
-        12,
-        29,
-        5,
-        "#111"
-    );
-
-    retangulo(
-        x + largura - 7,
-        y + 18,
-        12,
-        29,
-        5,
-        "#111"
-    );
-
-    retangulo(
-        x - 5,
-        y + altura - 47,
-        12,
-        29,
-        5,
-        "#111"
-    );
-
-    retangulo(
-        x + largura - 7,
-        y + altura - 47,
-        12,
-        29,
-        5,
-        "#111"
-    );
-
-
-    /* faróis */
-
-    retangulo(
-        x + 7,
-        y + 5,
-        13,
-        8,
-        3,
-        jogador
-            ? "#fff0a0"
-            : "#ff5151"
-    );
-
-    retangulo(
-        x + largura - 20,
-        y + 5,
-        13,
-        8,
-        3,
-        jogador
-            ? "#fff0a0"
-            : "#ff5151"
-    );
-
-
-    /* reflexo */
+    /* Teto */
 
     ctx.fillStyle =
-        "rgba(255,255,255,.2)";
+        "#222831";
 
-    ctx.fillRect(
-        x + 13,
+    ctx.beginPath();
+
+    ctx.roundRect(
+        x + 7,
         y + 20,
-        6,
-        18
+        largura - 14,
+        40,
+        7
+    );
+
+    ctx.fill();
+
+
+    /* Vidro dianteiro */
+
+    ctx.fillStyle =
+        "#76d7ff";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x + 12,
+        y + 24
+    );
+
+    ctx.lineTo(
+        x + largura - 12,
+        y + 24
+    );
+
+    ctx.lineTo(
+        x + largura - 16,
+        y + 40
+    );
+
+    ctx.lineTo(
+        x + 16,
+        y + 40
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    /* Vidro traseiro */
+
+    ctx.fillStyle =
+        "#4fa9d8";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x + 16,
+        y + 43
+    );
+
+    ctx.lineTo(
+        x + largura - 16,
+        y + 43
+    );
+
+    ctx.lineTo(
+        x + largura - 12,
+        y + 55
+    );
+
+    ctx.lineTo(
+        x + 12,
+        y + 55
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    /* Faróis */
+
+    retangulo(
+        x + 5,
+        y + 5,
+        11,
+        8,
+        "#fff8a6"
     );
 
 
-    /* detalhe do jogador */
+    retangulo(
+        x +
+        largura -
+        16,
+        y + 5,
+        11,
+        8,
+        "#fff8a6"
+    );
 
-    if (jogador) {
 
-        ctx.fillStyle =
-            "#ffe13d";
+    /* Lanternas */
+
+    retangulo(
+        x + 5,
+        y + altura - 13,
+        11,
+        8,
+        "#ff2222"
+    );
+
+
+    retangulo(
+        x +
+        largura -
+        16,
+        y + altura - 13,
+        11,
+        8,
+        "#ff2222"
+    );
+
+
+    /* Rodas */
+
+    retangulo(
+        x - 5,
+        y + 18,
+        7,
+        23,
+        "#111"
+    );
+
+
+    retangulo(
+        x +
+        largura -
+        2,
+        y + 18,
+        7,
+        23,
+        "#111"
+    );
+
+
+    retangulo(
+        x - 5,
+        y + altura - 41,
+        7,
+        23,
+        "#111"
+    );
+
+
+    retangulo(
+        x +
+        largura -
+        2,
+        y + altura - 41,
+        7,
+        23,
+        "#111"
+    );
+}
+
+
+/* =========================================================
+   DESENHAR ESTRADA
+========================================================= */
+
+function desenharEstrada() {
+
+    /* Grama */
+
+    ctx.fillStyle =
+        "#287b32";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    const estradaLargura =
+        Math.min(
+            500,
+            W * 0.60
+        );
+
+
+    const esquerda =
+        W / 2 -
+        estradaLargura / 2;
+
+
+    /* Estrada */
+
+    ctx.fillStyle =
+        "#444";
+
+    ctx.fillRect(
+        esquerda,
+        0,
+        estradaLargura,
+        H
+    );
+
+
+    /* Bordas */
+
+    ctx.fillStyle =
+        "#ffffff";
+
+    ctx.fillRect(
+        esquerda,
+        0,
+        6,
+        H
+    );
+
+
+    ctx.fillRect(
+        esquerda +
+        estradaLargura -
+        6,
+        0,
+        6,
+        H
+    );
+
+
+    /* Faixas */
+
+    const faixaLargura = 10;
+
+    const faixaAltura = 60;
+
+    const espaco = 45;
+
+
+    ctx.fillStyle =
+        "#ffffff";
+
+
+    for (
+        let y =
+            -100 +
+            deslocamento;
+
+        y < H;
+
+        y +=
+            faixaAltura +
+            espaco
+    ) {
 
         ctx.fillRect(
-            x + 5,
-            y + altura - 7,
-            largura - 10,
-            4
+            W / 2 -
+                faixaLargura / 2,
+
+            y,
+
+            faixaLargura,
+
+            faixaAltura
         );
     }
 }
@@ -612,403 +1160,34 @@ function desenharCarro(
 
 function desenharArvore(
     x,
-    y,
-    escala
+    y
 ) {
 
     ctx.fillStyle =
-        "#65452d";
+        "#704214";
 
     ctx.fillRect(
-        x - 5 * escala,
-        y + 15 * escala,
-        10 * escala,
-        35 * escala
-    );
-
-
-    ctx.fillStyle =
-        "#23723a";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y,
-        24 * escala,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    ctx.fillStyle =
-        "#31954b";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x - 12 * escala,
-        y + 2 * escala,
-        15 * escala,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x + 12 * escala,
-        y + 3 * escala,
-        15 * escala,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-}
-
-
-/* =========================================================
-   CENÁRIO
-========================================================= */
-
-function desenharCenario() {
-
-    const gradiente =
-        ctx.createLinearGradient(
-            0,
-            0,
-            0,
-            H
-        );
-
-    gradiente.addColorStop(
-        0,
-        "#65bdf0"
-    );
-
-    gradiente.addColorStop(
-        0.5,
-        "#d9f1fa"
-    );
-
-    gradiente.addColorStop(
-        0.51,
-        "#69bd5c"
-    );
-
-    gradiente.addColorStop(
-        1,
-        "#398c43"
-    );
-
-    ctx.fillStyle =
-        gradiente;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-
-    /* sol */
-
-    ctx.fillStyle =
-        "#ffe58a";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        W * 0.82,
-        H * 0.14,
-        38,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    const r = pista();
-
-
-    /* árvores */
-
-    const distancia = 105;
-
-    for (
-        let y =
-            (-deslocamento * 0.6)
-            % distancia - 30;
-
-        y < H + distancia;
-
-        y += distancia
-    ) {
-
-        desenharArvore(
-            r.esquerda - 60,
-            y + 25,
-            1
-        );
-
-        desenharArvore(
-            r.direita + 60,
-            y + 50,
-            0.9
-        );
-    }
-
-
-    /* pista */
-
-    ctx.fillStyle =
-        "#30343a";
-
-    ctx.fillRect(
-        r.esquerda,
-        0,
-        r.largura,
-        H
-    );
-
-
-    /* bordas */
-
-    ctx.fillStyle =
-        "#d7d7d7";
-
-    ctx.fillRect(
-        r.esquerda,
-        0,
-        10,
-        H
-    );
-
-    ctx.fillRect(
-        r.direita - 10,
-        0,
-        10,
-        H
-    );
-
-
-    /* faixas vermelhas */
-
-    ctx.fillStyle =
-        "#e33b3b";
-
-    for (
-        let y =
-            (-deslocamento) % 36;
-
-        y < H + 36;
-
-        y += 72
-    ) {
-
-        ctx.fillRect(
-            r.esquerda,
-            y,
-            10,
-            36
-        );
-
-        ctx.fillRect(
-            r.direita - 10,
-            y,
-            10,
-            36
-        );
-    }
-
-
-    /* faixas centrais */
-
-    ctx.fillStyle =
-        "#eeeeee";
-
-    const faixas = [
-
-        r.esquerda +
-        r.largura / 4,
-
-        r.esquerda +
-        r.largura / 2,
-
-        r.esquerda +
-        r.largura * 3 / 4
-
-    ];
-
-
-    for (
-        let i = 0;
-        i < faixas.length;
-        i++
-    ) {
-
-        for (
-            let y =
-                (-deslocamento) %
-                110 - 80;
-
-            y < H + 110;
-
-            y += 110
-        ) {
-
-            ctx.fillRect(
-                faixas[i] - 4,
-                y,
-                8,
-                60
-            );
-        }
-    }
-}
-
-
-/* =========================================================
-   BOTÕES
-========================================================= */
-
-function desenharBotao(
-    x,
-    y,
-    largura,
-    altura,
-    simbolo,
-    ativo
-) {
-
-    retangulo(
-        x,
-        y,
-        largura,
-        altura,
+        x - 7,
+        y + 25,
         14,
-        ativo
-            ? "#e0a82c"
-            : "rgba(20,28,40,.82)"
-    );
-
-    ctx.strokeStyle =
-        "rgba(255,255,255,.3)";
-
-    ctx.lineWidth = 2;
-
-    ctx.stroke();
-
-    texto(
-        simbolo,
-        38,
-        "#fff",
-        x + largura / 2,
-        y + altura / 2
-    );
-}
-
-
-function desenharControles() {
-
-    const botoes = {
-
-        esquerda: {
-            x: 30,
-            y: H - 100,
-            largura: 110,
-            altura: 65
-        },
-
-        direita: {
-            x: 155,
-            y: H - 100,
-            largura: 110,
-            altura: 65
-        },
-
-        cima: {
-            x: W - 135,
-            y: H - 175,
-            largura: 100,
-            altura: 65
-        },
-
-        baixo: {
-            x: W - 135,
-            y: H - 95,
-            largura: 100,
-            altura: 65
-        },
-
-        pausa: {
-            x: W - 80,
-            y: 18,
-            largura: 60,
-            altura: 48
-        }
-
-    };
-
-
-    desenharBotao(
-        botoes.esquerda.x,
-        botoes.esquerda.y,
-        botoes.esquerda.largura,
-        botoes.esquerda.altura,
-        "‹",
-        controleAtivo("esquerda")
+        45
     );
 
 
-    desenharBotao(
-        botoes.direita.x,
-        botoes.direita.y,
-        botoes.direita.largura,
-        botoes.direita.altura,
-        "›",
-        controleAtivo("direita")
+    ctx.fillStyle =
+        "#155b22";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        30,
+        0,
+        Math.PI * 2
     );
 
-
-    desenharBotao(
-        botoes.cima.x,
-        botoes.cima.y,
-        botoes.cima.largura,
-        botoes.cima.altura,
-        "↑",
-        controleAtivo("cima")
-    );
-
-
-    desenharBotao(
-        botoes.baixo.x,
-        botoes.baixo.y,
-        botoes.baixo.largura,
-        botoes.baixo.altura,
-        "↓",
-        controleAtivo("baixo")
-    );
-
-
-    desenharBotao(
-        botoes.pausa.x,
-        botoes.pausa.y,
-        botoes.pausa.largura,
-        botoes.pausa.altura,
-        pausado ? "▶" : "Ⅱ",
-        false
-    );
-
-    return botoes;
+    ctx.fill();
 }
 
 
@@ -1018,86 +1197,181 @@ function desenharControles() {
 
 function desenharHUD() {
 
-    retangulo(
-        14,
-        14,
-        260,
-        75,
-        13,
-        "rgba(10,17,27,.75)"
-    );
+    ctx.fillStyle =
+        "rgba(0,0,0,0.45)";
 
-    texto(
-        "PONTOS",
-        14,
-        "#aeb8c5",
-        32,
-        34
-    );
 
-    texto(
-        String(pontos),
-        27,
-        "#fff",
-        32,
-        62
+    ctx.fillRect(
+        10,
+        10,
+        285,
+        125
     );
 
 
     texto(
-        "VIDAS",
-        14,
-        "#aeb8c5",
-        128,
-        34
+        "Pontos: " +
+        Math.floor(pontos),
+
+        25,
+        35,
+        22,
+
+        "#ffffff",
+
+        "left"
     );
 
 
-    for (
-        let i = 0;
-        i < 3;
-        i++
-    ) {
+    texto(
+        "Vidas: " +
+        vidas,
+
+        25,
+        65,
+        22,
+
+        "#ff5555",
+
+        "left"
+    );
+
+
+    texto(
+        "Velocidade: " +
+        velocidade.toFixed(1),
+
+        25,
+        95,
+        18,
+
+        "#ffff66",
+
+        "left"
+    );
+
+
+    const proximo =
+        (
+            Math.floor(
+                pontos / 50
+            ) + 1
+        ) * 50;
+
+
+    texto(
+        "Próximo aumento: " +
+        proximo,
+
+        25,
+        120,
+        14,
+
+        "#cccccc",
+
+        "left"
+    );
+
+
+    if (pausado) {
+
+        ctx.fillStyle =
+            "rgba(0,0,0,0.65)";
+
+        ctx.fillRect(
+            0,
+            0,
+            W,
+            H
+        );
+
 
         texto(
-            i < vidas ? "♥" : "♡",
-            22,
-            i < vidas
-                ? "#ff5360"
-                : "#657080",
-            130 + i * 24,
-            62
+            "PAUSADO",
+
+            W / 2,
+            H / 2 - 20,
+
+            50
+        );
+
+
+        texto(
+            "Pressione ESC para continuar",
+
+            W / 2,
+            H / 2 + 35,
+
+            20
+        );
+    }
+}
+
+
+/* =========================================================
+   CONTROLES NA TELA
+========================================================= */
+
+function desenharControles() {
+
+    const tamanho = 80;
+
+    const margem = 20;
+
+    const y =
+        H -
+        tamanho -
+        margem;
+
+
+    function botao(
+        x,
+        simbolo
+    ) {
+
+        ctx.fillStyle =
+            "rgba(255,255,255,0.25)";
+
+
+        ctx.beginPath();
+
+        ctx.roundRect(
+            x,
+            y,
+            tamanho,
+            tamanho,
+            15
+        );
+
+        ctx.fill();
+
+
+        texto(
+            simbolo,
+
+            x +
+                tamanho / 2,
+
+            y +
+                tamanho / 2,
+
+            32
         );
     }
 
 
-    retangulo(
-        W - 145,
-        14,
-        130,
-        75,
-        13,
-        "rgba(10,17,27,.75)"
+    botao(
+        margem,
+        "←"
     );
 
 
-    texto(
-        "VELOCIDADE",
-        11,
-        "#aeb8c5",
-        W - 80,
-        33
-    );
+    botao(
+        W -
+            tamanho -
+            margem,
 
-
-    texto(
-        Math.floor(
-            velocidade * 12
-        ) + " km/h",
-        21,
-        "#ffd43d",
-        W - 80,
-        62
+        "→"
     );
 }
 
@@ -1109,7 +1383,7 @@ function desenharHUD() {
 function desenharMenu() {
 
     ctx.fillStyle =
-        "#101722";
+        "#111722";
 
     ctx.fillRect(
         0,
@@ -1120,209 +1394,81 @@ function desenharMenu() {
 
 
     texto(
-        "CORRIDA",
-        Math.min(72, W * 0.08),
-        "#fff",
+        "CORRIDA 2D",
+
         W / 2,
-        H * 0.20
+
+        H / 2 - 110,
+
+        55
     );
 
 
     texto(
-        "2D",
-        Math.min(82, W * 0.10),
-        "#ffd43b",
+        "Desvie dos carros!",
+
         W / 2,
-        H * 0.31
+
+        H / 2 - 50,
+
+        22,
+
+        "#cccccc"
+    );
+
+
+    ctx.fillStyle =
+        "#1f8cff";
+
+
+    ctx.beginPath();
+
+    ctx.roundRect(
+        W / 2 - 150,
+        H / 2,
+        300,
+        70,
+        15
+    );
+
+    ctx.fill();
+
+
+    texto(
+        "COMEÇAR",
+
+        W / 2,
+
+        H / 2 + 35,
+
+        28
     );
 
 
     texto(
-        "TURBO",
-        25,
-        "#91a3ba",
+        "← → ou A / D para controlar",
+
         W / 2,
-        H * 0.38
-    );
 
+        H / 2 + 110,
 
-    const botao = {
+        18,
 
-        x: W / 2 - 145,
-
-        y: H * 0.50,
-
-        largura: 290,
-
-        altura: 75
-
-    };
-
-
-    retangulo(
-        botao.x,
-        botao.y,
-        botao.largura,
-        botao.altura,
-        17,
-        "#27a75b"
+        "#bbbbbb"
     );
 
 
     texto(
-        "▶  JOGAR",
-        33,
-        "#fff",
+        "A velocidade aumenta a cada 50 pontos!",
+
         W / 2,
-        botao.y +
-        botao.altura / 2
+
+        H / 2 + 140,
+
+        16,
+
+        "#ffff66"
     );
-
-
-    texto(
-        "RECORDE  " + recorde,
-        23,
-        "#ffd43b",
-        W / 2,
-        H * 0.67
-    );
-
-
-    texto(
-        "WASD / SETAS  •  TOQUE",
-        17,
-        "#aab7c7",
-        W / 2,
-        H * 0.74
-    );
-
-
-    desenharCarro(
-        W / 2 - 28,
-        H * 0.81,
-        56,
-        92,
-        "#e23838",
-        true
-    );
-}
-
-
-/* =========================================================
-   JOGO
-========================================================= */
-
-function desenharJogo() {
-
-    desenharCenario();
-
-
-    for (
-        let i = 0;
-        i < inimigos.length;
-        i++
-    ) {
-
-        const inimigo =
-            inimigos[i];
-
-        desenharCarro(
-            inimigo.x,
-            inimigo.y,
-            inimigo.largura,
-            inimigo.altura,
-            inimigo.cor,
-            false
-        );
-    }
-
-
-    desenharCarro(
-        jogador.x,
-        jogador.y,
-        jogador.largura,
-        jogador.altura,
-        "#e23838",
-        true
-    );
-
-
-    for (
-        let i = 0;
-        i < particulas.length;
-        i++
-    ) {
-
-        const p =
-            particulas[i];
-
-        ctx.fillStyle =
-            "rgba(255,215,70," +
-            Math.max(
-                0,
-                p.vida * 2
-            ) +
-            ")";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            p.x,
-            p.y,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-    }
-
-
-    desenharHUD();
-
-    desenharControles();
-
-
-    if (pausado) {
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.62)";
-
-        ctx.fillRect(
-            0,
-            0,
-            W,
-            H
-        );
-
-
-        retangulo(
-            W / 2 - 190,
-            H / 2 - 75,
-            380,
-            150,
-            20,
-            "#182131"
-        );
-
-
-        texto(
-            "PAUSADO",
-            43,
-            "#fff",
-            W / 2,
-            H / 2 - 20
-        );
-
-
-        texto(
-            "Toque em Ⅱ para continuar",
-            19,
-            "#aeb9c5",
-            W / 2,
-            H / 2 + 30
-        );
-    }
 }
 
 
@@ -1344,464 +1490,199 @@ function desenharGameOver() {
 
 
     texto(
-        "FIM DE JOGO",
-        Math.min(
-            62,
-            W * 0.07
-        ),
-        "#ff5360",
+        "GAME OVER",
+
         W / 2,
-        H * 0.25
+
+        H / 2 - 110,
+
+        55,
+
+        "#ff4444"
     );
 
 
     texto(
-        "PONTOS",
-        18,
-        "#aeb9c5",
+        "Pontuação: " +
+        Math.floor(pontos),
+
         W / 2,
-        H * 0.39
+
+        H / 2 - 40,
+
+        28
     );
 
 
     texto(
-        String(pontos),
-        48,
-        "#fff",
+        "Recorde: " +
+        recorde,
+
         W / 2,
-        H * 0.46
-    );
 
+        H / 2,
 
-    texto(
-        "Recorde: " + recorde,
-        27,
-        "#ffd43b",
-        W / 2,
-        H * 0.55
-    );
-
-
-    const botao = {
-
-        x: W / 2 - 150,
-
-        y: H * 0.66,
-
-        largura: 300,
-
-        altura: 72
-
-    };
-
-
-    retangulo(
-        botao.x,
-        botao.y,
-        botao.largura,
-        botao.altura,
-        17,
-        "#27a75b"
-    );
-
-
-    texto(
-        "↻  JOGAR NOVAMENTE",
         24,
-        "#fff",
+
+        "#ffff55"
+    );
+
+
+    ctx.fillStyle =
+        "#1f8cff";
+
+
+    ctx.beginPath();
+
+    ctx.roundRect(
+        W / 2 - 150,
+        H / 2 + 55,
+        300,
+        70,
+        15
+    );
+
+    ctx.fill();
+
+
+    texto(
+        "JOGAR NOVAMENTE",
+
         W / 2,
-        botao.y +
-        botao.altura / 2
+
+        H / 2 + 90,
+
+        24
     );
 }
 
 
 /* =========================================================
-   CONTROLES
+   DESENHAR JOGO
 ========================================================= */
 
-function controleAtivo(
-    controle
-) {
+function desenharJogo() {
 
-    return (
-        teclado[controle] ||
-        toque[controle]
-    );
-}
+    desenharEstrada();
 
 
-function limparControles() {
+    /* Árvores */
 
-    teclado.esquerda = false;
-    teclado.direita = false;
-    teclado.cima = false;
-    teclado.baixo = false;
+    for (
+        let y =
+            -100 +
+            (
+                deslocamento *
+                0.7
+            ) % 180;
 
-    toque.esquerda = false;
-    toque.direita = false;
-    toque.cima = false;
-    toque.baixo = false;
-}
+        y < H;
 
-
-/* =========================================================
-   TOQUE / MOUSE
-========================================================= */
-
-function pontoDoEvento(
-    evento
-) {
-
-    const r =
-        canvas.getBoundingClientRect();
-
-    return {
-
-        x:
-            (evento.clientX - r.left) *
-            (W / r.width),
-
-        y:
-            (evento.clientY - r.top) *
-            (H / r.height)
-
-    };
-}
-
-
-function estaDentro(
-    botao,
-    x,
-    y
-) {
-
-    return (
-
-        x >= botao.x &&
-
-        x <=
-        botao.x +
-        botao.largura &&
-
-        y >= botao.y &&
-
-        y <=
-        botao.y +
-        botao.altura
-
-    );
-}
-
-
-function processarToque(
-    x,
-    y
-) {
-
-    if (estado === "menu") {
-
-        const botao = {
-
-            x: W / 2 - 145,
-
-            y: H * 0.50,
-
-            largura: 290,
-
-            altura: 75
-
-        };
-
-        if (
-            estaDentro(
-                botao,
-                x,
-                y
-            )
-        ) {
-
-            iniciarJogo();
-        }
-
-        return;
-    }
-
-
-    if (estado === "gameover") {
-
-        const botao = {
-
-            x: W / 2 - 150,
-
-            y: H * 0.66,
-
-            largura: 300,
-
-            altura: 72
-
-        };
-
-        if (
-            estaDentro(
-                botao,
-                x,
-                y
-            )
-        ) {
-
-            iniciarJogo();
-        }
-
-        return;
-    }
-
-
-    const botoes = {
-
-        esquerda: {
-            x: 30,
-            y: H - 100,
-            largura: 110,
-            altura: 65
-        },
-
-        direita: {
-            x: 155,
-            y: H - 100,
-            largura: 110,
-            altura: 65
-        },
-
-        cima: {
-            x: W - 135,
-            y: H - 175,
-            largura: 100,
-            altura: 65
-        },
-
-        baixo: {
-            x: W - 135,
-            y: H - 95,
-            largura: 100,
-            altura: 65
-        },
-
-        pausa: {
-            x: W - 80,
-            y: 18,
-            largura: 60,
-            altura: 48
-        }
-
-    };
-
-
-    if (
-        estaDentro(
-            botoes.pausa,
-            x,
-            y
-        )
+        y += 180
     ) {
 
-        pausado =
-            !pausado;
-
-        return;
-    }
-
-
-    if (pausado) return;
-
-
-    if (
-        estaDentro(
-            botoes.esquerda,
-            x,
-            y
-        )
-    ) {
-
-        toque.esquerda = true;
-
-    } else if (
-        estaDentro(
-            botoes.direita,
-            x,
-            y
-        )
-    ) {
-
-        toque.direita = true;
-
-    } else if (
-        estaDentro(
-            botoes.cima,
-            x,
-            y
-        )
-    ) {
-
-        toque.cima = true;
-
-    } else if (
-        estaDentro(
-            botoes.baixo,
-            x,
-            y
-        )
-    ) {
-
-        toque.baixo = true;
-    }
-}
-
-
-canvas.addEventListener(
-    "pointerdown",
-    function (evento) {
-
-        evento.preventDefault();
-
-        const ponto =
-            pontoDoEvento(
-                evento
+        const estradaLargura =
+            Math.min(
+                500,
+                W * 0.60
             );
 
-        processarToque(
-            ponto.x,
-            ponto.y
+
+        const esquerda =
+            W / 2 -
+            estradaLargura / 2;
+
+
+        desenharArvore(
+            esquerda - 45,
+            y
+        );
+
+
+        desenharArvore(
+            esquerda +
+            estradaLargura +
+            45,
+
+            y + 70
         );
     }
-);
 
 
-canvas.addEventListener(
-    "pointerup",
-    function (evento) {
+    /* Inimigos */
 
-        evento.preventDefault();
+    for (
+        const inimigo of inimigos
+    ) {
 
-        limparControles();
+        desenharCarro(
+
+            inimigo.x,
+
+            inimigo.y,
+
+            inimigo.largura,
+
+            inimigo.altura,
+
+            inimigo.cor
+        );
     }
-);
 
 
-canvas.addEventListener(
-    "pointercancel",
-    limparControles
-);
+    /* Jogador */
+
+    if (jogador) {
+
+        desenharCarro(
+
+            jogador.x,
+
+            jogador.y,
+
+            jogador.largura,
+
+            jogador.altura,
+
+            jogador.cor
+        );
+    }
+
+
+    /* Partículas */
+
+    for (
+        const p of particulas
+    ) {
+
+        ctx.globalAlpha =
+            Math.max(
+                0,
+                p.vida
+            );
+
+
+        retangulo(
+            p.x,
+            p.y,
+            5,
+            5,
+            "#ffcc00"
+        );
+
+
+        ctx.globalAlpha = 1;
+    }
+
+
+    desenharHUD();
+
+    desenharControles();
+}
 
 
 /* =========================================================
-   TECLADO
-========================================================= */
-
-window.addEventListener(
-    "keydown",
-    function (evento) {
-
-        const tecla =
-            evento.key.toLowerCase();
-
-
-        if (
-            tecla === "a" ||
-            evento.key === "ArrowLeft"
-        ) {
-
-            teclado.esquerda = true;
-        }
-
-
-        if (
-            tecla === "d" ||
-            evento.key === "ArrowRight"
-        ) {
-
-            teclado.direita = true;
-        }
-
-
-        if (
-            tecla === "w" ||
-            evento.key === "ArrowUp"
-        ) {
-
-            teclado.cima = true;
-        }
-
-
-        if (
-            tecla === "s" ||
-            evento.key === "ArrowDown"
-        ) {
-
-            teclado.baixo = true;
-        }
-
-
-        if (
-            evento.key === "Escape" &&
-            estado === "jogando"
-        ) {
-
-            pausado =
-                !pausado;
-        }
-    }
-);
-
-
-window.addEventListener(
-    "keyup",
-    function (evento) {
-
-        const tecla =
-            evento.key.toLowerCase();
-
-
-        if (
-            tecla === "a" ||
-            evento.key === "ArrowLeft"
-        ) {
-
-            teclado.esquerda = false;
-        }
-
-
-        if (
-            tecla === "d" ||
-            evento.key === "ArrowRight"
-        ) {
-
-            teclado.direita = false;
-        }
-
-
-        if (
-            tecla === "w" ||
-            evento.key === "ArrowUp"
-        ) {
-
-            teclado.cima = false;
-        }
-
-
-        if (
-            tecla === "s" ||
-            evento.key === "ArrowDown"
-        ) {
-
-            teclado.baixo = false;
-        }
-    }
-);
-
-
-/* =========================================================
-   ATUALIZAÇÃO
+   ATUALIZAR JOGO
 ========================================================= */
 
 let ultimoTempo =
@@ -1813,14 +1694,22 @@ function atualizar() {
     const agora =
         performance.now();
 
+
     let delta =
-        (agora - ultimoTempo) /
-        1000;
+        (
+            agora -
+            ultimoTempo
+        ) / 1000;
+
 
     ultimoTempo =
         agora;
 
-    if (delta > 0.05) {
+
+    if (
+        delta > 0.05
+    ) {
+
         delta = 0.05;
     }
 
@@ -1830,37 +1719,61 @@ function atualizar() {
         !pausado
     ) {
 
+
+        /* =========================================
+           VELOCIDADE AUTOMÁTICA
+
+           0 pontos   = 5.0
+           50 pontos  = 5.5
+           100 pontos = 6.0
+           150 pontos = 6.5
+           200 pontos = 7.0
+           250 pontos = 7.5
+
+           ...
+
+           1000 pontos = 15.0
+        ========================================= */
+
+
+        const velocidadeAlvo =
+            Math.min(
+                15,
+
+                5 +
+                Math.floor(
+                    pontos / 50
+                ) *
+                0.5
+            );
+
+
+        /* Aumenta suavemente */
+
         if (
-            controleAtivo("cima")
+            velocidade <
+            velocidadeAlvo
         ) {
 
             velocidade +=
-                0.12 *
+                0.025 *
                 delta *
                 60;
         }
 
 
-        if (
-            controleAtivo("baixo")
-        ) {
-
-            velocidade -=
-                0.12 *
-                delta *
-                60;
-        }
-
+        /* Limite máximo */
 
         velocidade =
-            Math.max(
-                2,
-                Math.min(
-                    15,
-                    velocidade
-                )
+            Math.min(
+                15,
+                velocidade
             );
 
+
+        /* =========================================
+           MOVIMENTO DO JOGADOR
+        ========================================= */
 
         if (
             controleAtivo(
@@ -1869,7 +1782,7 @@ function atualizar() {
         ) {
 
             jogador.x -=
-                7 *
+                8 *
                 delta *
                 60;
         }
@@ -1882,7 +1795,7 @@ function atualizar() {
         ) {
 
             jogador.x +=
-                7 *
+                8 *
                 delta *
                 60;
         }
@@ -1891,14 +1804,22 @@ function atualizar() {
         limitarJogador();
 
 
+        /* =========================================
+           MOVIMENTO DA ESTRADA
+        ========================================= */
+
         deslocamento +=
             velocidade *
             delta *
             60;
 
-        deslocamento %=
-            110;
 
+        deslocamento %= 105;
+
+
+        /* =========================================
+           INIMIGOS
+        ========================================= */
 
         for (
             let i = 0;
@@ -1912,52 +1833,69 @@ function atualizar() {
 
             inimigo.y +=
                 (
-                    inimigo.velocidade +
-                    velocidade
+                    velocidade +
+                    inimigo.velocidadeExtra
                 ) *
                 delta *
                 60;
 
+
+            /* Saiu da tela */
 
             if (
                 inimigo.y >
                 H + 100
             ) {
 
-                reposicionarInimigo(
-                    inimigo,
-                    false
-                );
-
                 pontos += 10;
+
+
+                reposicionarInimigo(
+                    inimigo
+                );
             }
 
 
+            /* Colisão */
+
             if (
+                jogador &&
                 colidiu(
                     jogador,
                     inimigo
                 )
             ) {
 
-                vidas--;
-
                 criarExplosao(
-                    inimigo.x +
-                    inimigo.largura / 2,
 
-                    inimigo.y +
-                    inimigo.altura / 2
+                    jogador.x +
+                    jogador.largura / 2,
+
+                    jogador.y +
+                    jogador.altura / 2
                 );
+
+
+                vidas--;
 
 
                 reposicionarInimigo(
-                    inimigo,
-                    false
+                    inimigo
                 );
 
 
-                if (vidas <= 0) {
+                jogador.x =
+                    W / 2 -
+                    jogador.largura / 2;
+
+
+                if (
+                    vidas <= 0
+                ) {
+
+                    estado =
+                        "gameover";
+
 
                     if (
                         pontos >
@@ -1965,27 +1903,26 @@ function atualizar() {
                     ) {
 
                         recorde =
-                            pontos;
-
-                        try {
-
-                            localStorage.setItem(
-                                "corrida2d_recorde",
-                                String(recorde)
+                            Math.floor(
+                                pontos
                             );
 
-                        } catch (erro) {}
+
+                        localStorage.setItem(
+
+                            "corrida2d_recorde",
+
+                            recorde
+                        );
                     }
-
-
-                    estado =
-                        "gameover";
-
-                    limparControles();
                 }
             }
         }
 
+
+        /* =========================================
+           PARTÍCULAS
+        ========================================= */
 
         for (
             let i =
@@ -1999,18 +1936,18 @@ function atualizar() {
             const p =
                 particulas[i];
 
+
             p.x +=
-                p.velocidadeX *
-                delta *
-                60;
+                p.vx;
 
             p.y +=
-                p.velocidadeY *
-                delta *
-                60;
+                p.vy;
+
+            p.vy +=
+                0.2;
 
             p.vida -=
-                delta;
+                0.03;
 
 
             if (
@@ -2028,55 +1965,10 @@ function atualizar() {
 
     desenhar();
 
+
     requestAnimationFrame(
         atualizar
     );
-}
-
-
-/* =========================================================
-   EXPLOSÃO
-========================================================= */
-
-function criarExplosao(
-    x,
-    y
-) {
-
-    for (
-        let i = 0;
-        i < 15;
-        i++
-    ) {
-
-        const angulo =
-            Math.random() *
-            Math.PI *
-            2;
-
-        const velocidadeParticula =
-            2 +
-            Math.random() *
-            4;
-
-
-        particulas.push({
-
-            x: x,
-
-            y: y,
-
-            velocidadeX:
-                Math.cos(angulo) *
-                velocidadeParticula,
-
-            velocidadeY:
-                Math.sin(angulo) *
-                velocidadeParticula,
-
-            vida: 0.5
-        });
-    }
 }
 
 
@@ -2092,17 +1984,84 @@ function desenhar() {
 
         desenharMenu();
 
-    } else if (
+    }
+
+    else if (
         estado === "jogando"
     ) {
 
         desenharJogo();
 
-    } else {
+    }
+
+    else if (
+        estado === "gameover"
+    ) {
 
         desenharGameOver();
     }
 }
+
+
+/* =========================================================
+   CLIQUE NO MENU
+========================================================= */
+
+canvas.addEventListener(
+    "click",
+    function(evento) {
+
+        const ponto =
+            pontoDoEvento(evento);
+
+
+        if (
+            estado === "menu"
+        ) {
+
+            if (
+                ponto.x >
+                    W / 2 - 150 &&
+
+                ponto.x <
+                    W / 2 + 150 &&
+
+                ponto.y >
+                    H / 2 &&
+
+                ponto.y <
+                    H / 2 + 70
+            ) {
+
+                iniciarJogo();
+            }
+        }
+
+
+        else if (
+            estado ===
+            "gameover"
+        ) {
+
+            if (
+                ponto.x >
+                    W / 2 - 150 &&
+
+                ponto.x <
+                    W / 2 + 150 &&
+
+                ponto.y >
+                    H / 2 + 55 &&
+
+                ponto.y <
+                    H / 2 + 125
+            ) {
+
+                iniciarJogo();
+            }
+        }
+    }
+);
 
 
 /* =========================================================
@@ -2118,4 +2077,5 @@ requestAnimationFrame(
 </script>
 
 </body>
+
 </html>
