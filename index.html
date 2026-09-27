@@ -2,23 +2,34 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Corrida 2D</title>
+
 <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body {
-        margin: 0; padding: 0; width: 100%; height: 100%;
-        overflow: hidden; background: #191923;
-        font-family: Arial, sans-serif; touch-action: none;
-    }
-    #game {
-        display: block; width: 100vw; height: 100vh;
-    }
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #111722;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    touch-action: none;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
 </style>
 </head>
+
 <body>
+
 <canvas id="game"></canvas>
 
 <script>
@@ -27,388 +38,2084 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let W = innerWidth, H = innerHeight;
-let dpr = Math.min(devicePixelRatio || 1, 2);
+let W = 900;
+let H = 600;
+let dpr = 1;
 
-function resize() {
-    W = innerWidth;
-    H = innerHeight;
-    dpr = Math.min(devicePixelRatio || 1, 2);
-    canvas.width = Math.floor(W * dpr);
-    canvas.height = Math.floor(H * dpr);
-    canvas.style.width = W + "px";
-    canvas.style.height = H + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+let estado = "menu";
+let pausado = false;
 
-    if (player) {
-        player.y = H - 180;
-        clampPlayer();
+let pontos = 0;
+let vidas = 3;
+let velocidade = 5;
+let deslocamento = 0;
+
+let recorde = Number(
+    localStorage.getItem("corrida2d_recorde") || 0
+);
+
+let jogador = null;
+let inimigos = [];
+let particulas = [];
+
+const teclado = {
+    esquerda: false,
+    direita: false,
+    cima: false,
+    baixo: false
+};
+
+const toque = {
+    esquerda: false,
+    direita: false,
+    cima: false,
+    baixo: false
+};
+
+
+/* =========================================================
+   TAMANHO DA TELA
+========================================================= */
+
+function redimensionar() {
+
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    if (W < 500) W = 500;
+    if (H < 400) H = 400;
+
+    dpr = Math.min(
+        window.devicePixelRatio || 1,
+        2
+    );
+
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+
+    ctx.setTransform(
+        dpr,
+        0,
+        0,
+        dpr,
+        0,
+        0
+    );
+
+    if (jogador) {
+
+        jogador.y = H - 175;
+
+        limitarJogador();
     }
-    updateButtons();
-}
-addEventListener("resize", resize);
-resize();
-
-const COLORS = {
-    grass: "#1e963c",
-    road: "#373737",
-    white: "#ffffff",
-    black: "#141414",
-    red: "#dc3232",
-    blue: "#3264dc",
-    yellow: "#f0dc32",
-    orange: "#f0821e",
-    purple: "#9632b4",
-    cyan: "#1eb4b4",
-    gray: "#646464"
-};
-
-let state = "menu";
-let paused = false;
-let score = 0;
-let lives = 3;
-let roadSpeed = 5;
-let minSpeed = 2;
-let maxSpeed = 15;
-let offset = 0;
-let record = Number(localStorage.getItem("corrida2d_recorde") || 0);
-
-let controls = {
-    left: false,
-    right: false,
-    forward: false,
-    backward: false
-};
-
-let player = null;
-let enemies = [];
-
-const buttons = {};
-
-function updateButtons() {
-    buttons.left = {x: 40, y: H - 100, w: 120, h: 70};
-    buttons.right = {x: 180, y: H - 100, w: 120, h: 70};
-    buttons.forward = {x: W - 150, y: H - 180, w: 100, h: 70};
-    buttons.backward = {x: W - 150, y: H - 95, w: 100, h: 70};
-    buttons.pause = {x: W - 90, y: 20, w: 70, h: 50};
 }
 
-function rectContains(r, x, y) {
-    return x >= r.x && x <= r.x+r.w && y >= r.y && y <= r.y+r.h;
+window.addEventListener(
+    "resize",
+    redimensionar
+);
+
+redimensionar();
+
+
+/* =========================================================
+   RETÂNGULO ARREDONDADO
+========================================================= */
+
+function retangulo(
+    x,
+    y,
+    largura,
+    altura,
+    raio,
+    cor
+) {
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x + raio,
+        y
+    );
+
+    ctx.lineTo(
+        x + largura - raio,
+        y
+    );
+
+    ctx.quadraticCurveTo(
+        x + largura,
+        y,
+        x + largura,
+        y + raio
+    );
+
+    ctx.lineTo(
+        x + largura,
+        y + altura - raio
+    );
+
+    ctx.quadraticCurveTo(
+        x + largura,
+        y + altura,
+        x + largura - raio,
+        y + altura
+    );
+
+    ctx.lineTo(
+        x + raio,
+        y + altura
+    );
+
+    ctx.quadraticCurveTo(
+        x,
+        y + altura,
+        x,
+        y + altura - raio
+    );
+
+    ctx.lineTo(
+        x,
+        y + raio
+    );
+
+    ctx.quadraticCurveTo(
+        x,
+        y,
+        x + raio,
+        y
+    );
+
+    ctx.closePath();
+
+    ctx.fillStyle = cor;
+
+    ctx.fill();
 }
 
-function startGame() {
-    score = 0;
-    lives = 3;
-    roadSpeed = 5;
-    maxSpeed = 15;
-    offset = 0;
-    paused = false;
-    controls.left = controls.right = controls.forward = controls.backward = false;
 
-    player = {
-        x: W/2 - 27.5,
-        y: H - 180,
-        w: 55,
-        h: 90,
-        speed: 7
+/* =========================================================
+   TEXTO
+========================================================= */
+
+function texto(
+    mensagem,
+    tamanho,
+    cor,
+    x,
+    y
+) {
+
+    ctx.font =
+        "bold " +
+        tamanho +
+        "px Arial";
+
+    ctx.fillStyle = cor;
+
+    ctx.textAlign = "center";
+
+    ctx.textBaseline = "middle";
+
+    ctx.fillText(
+        mensagem,
+        x,
+        y
+    );
+}
+
+
+/* =========================================================
+   PISTA
+========================================================= */
+
+function pista() {
+
+    const larguraPista =
+        Math.min(
+            560,
+            Math.max(
+                440,
+                W * 0.54
+            )
+        );
+
+    return {
+
+        esquerda:
+            W / 2 -
+            larguraPista / 2,
+
+        direita:
+            W / 2 +
+            larguraPista / 2,
+
+        largura:
+            larguraPista
+    };
+}
+
+
+/* =========================================================
+   INICIAR JOGO
+========================================================= */
+
+function iniciarJogo() {
+
+    pontos = 0;
+
+    vidas = 3;
+
+    velocidade = 5;
+
+    deslocamento = 0;
+
+    pausado = false;
+
+    jogador = {
+
+        x:
+            W / 2 - 28,
+
+        y:
+            H - 175,
+
+        largura: 56,
+
+        altura: 92
+
     };
 
-    enemies = [];
-    for (let i = 0; i < 4; i++) enemies.push(newEnemy());
+    inimigos = [];
 
-    state = "playing";
+    for (
+        let i = 0;
+        i < 5;
+        i++
+    ) {
+
+        inimigos.push(
+            criarInimigo(i)
+        );
+    }
+
+    particulas = [];
+
+    limparControles();
+
+    estado = "jogando";
 }
 
-function newEnemy() {
-    const e = {
-        x: 0, y: 0, w: 55, h: 90,
-        speed: 5 + Math.random() * 3,
-        color: [COLORS.blue, COLORS.yellow, COLORS.orange, COLORS.purple, COLORS.cyan][Math.floor(Math.random()*5)]
+
+/* =========================================================
+   CRIAR INIMIGO
+========================================================= */
+
+function criarInimigo(indice) {
+
+    const cores = [
+
+        "#2878e8",
+        "#f2cf32",
+        "#ef6c25",
+        "#a447c4",
+        "#20b7b7"
+
+    ];
+
+    const inimigo = {
+
+        x: 0,
+
+        y: 0,
+
+        largura: 56,
+
+        altura: 92,
+
+        velocidade:
+            5 + Math.random() * 3,
+
+        cor:
+            cores[
+                indice %
+                cores.length
+            ]
+
     };
-    respawn(e);
-    return e;
+
+    reposicionarInimigo(
+        inimigo,
+        true
+    );
+
+    return inimigo;
 }
 
-function respawn(e) {
-    const center = W/2;
-    const left = center - 190;
-    const right = center + 190 - e.w;
-    e.x = left + Math.random() * Math.max(1, right-left);
-    e.y = -150 - Math.random() * 550;
+
+/* =========================================================
+   REPOSICIONAR INIMIGO
+========================================================= */
+
+function reposicionarInimigo(
+    inimigo,
+    inicio
+) {
+
+    const r = pista();
+
+    const minimo =
+        r.esquerda + 35;
+
+    const maximo =
+        r.direita -
+        inimigo.largura -
+        35;
+
+    inimigo.x =
+        minimo +
+        Math.random() *
+        Math.max(
+            1,
+            maximo - minimo
+        );
+
+    inimigo.y =
+        inicio
+            ? -180 - Math.random() * 700
+            : -180 - Math.random() * 450;
 }
 
-function clampPlayer() {
-    if (!player) return;
-    const left = W/2 - 220;
-    const right = W/2 + 220 - player.w;
-    player.x = Math.max(left, Math.min(right, player.x));
-    player.y = H - 180;
+
+/* =========================================================
+   LIMITAR JOGADOR
+========================================================= */
+
+function limitarJogador() {
+
+    if (!jogador) return;
+
+    const r = pista();
+
+    const minimo =
+        r.esquerda + 25;
+
+    const maximo =
+        r.direita -
+        jogador.largura -
+        25;
+
+    jogador.x =
+        Math.max(
+            minimo,
+            Math.min(
+                maximo,
+                jogador.x
+            )
+        );
 }
 
-function update(dt) {
-    if (state !== "playing" || paused) return;
 
-    if (controls.forward) roadSpeed += 0.15 * dt * 60;
-    if (controls.backward) roadSpeed -= 0.15 * dt * 60;
-    roadSpeed = Math.max(minSpeed, Math.min(maxSpeed, roadSpeed));
+/* =========================================================
+   COLISÃO
+========================================================= */
 
-    if (controls.left) player.x -= player.speed * dt * 60;
-    if (controls.right) player.x += player.speed * dt * 60;
-    clampPlayer();
+function colidiu(a, b) {
 
-    offset += roadSpeed * dt * 60;
-    if (offset >= 105) offset %= 105;
+    const margem = 8;
 
-    for (const e of enemies) {
-        e.y += (e.speed + roadSpeed) * dt * 60;
+    return (
 
-        if (e.y > H + 100) {
-            respawn(e);
-            score += 10;
+        a.x + margem <
+        b.x + b.largura - margem
+
+        &&
+
+        a.x + a.largura - margem >
+        b.x + margem
+
+        &&
+
+        a.y + margem <
+        b.y + b.altura - margem
+
+        &&
+
+        a.y + a.altura - margem >
+        b.y + margem
+
+    );
+}
+
+
+/* =========================================================
+   CARRO
+========================================================= */
+
+function desenharCarro(
+    x,
+    y,
+    largura,
+    altura,
+    cor,
+    jogador
+) {
+
+    /* sombra */
+
+    retangulo(
+        x + 4,
+        y + 5,
+        largura,
+        altura,
+        10,
+        "rgba(0,0,0,.35)"
+    );
+
+
+    /* corpo */
+
+    retangulo(
+        x,
+        y,
+        largura,
+        altura,
+        10,
+        cor
+    );
+
+
+    /* vidro dianteiro */
+
+    retangulo(
+        x + 9,
+        y + 14,
+        largura - 18,
+        26,
+        6,
+        "#183b58"
+    );
+
+
+    /* vidro traseiro */
+
+    retangulo(
+        x + 9,
+        y + altura - 38,
+        largura - 18,
+        22,
+        6,
+        "#102d43"
+    );
+
+
+    /* rodas */
+
+    retangulo(
+        x - 5,
+        y + 18,
+        12,
+        29,
+        5,
+        "#111"
+    );
+
+    retangulo(
+        x + largura - 7,
+        y + 18,
+        12,
+        29,
+        5,
+        "#111"
+    );
+
+    retangulo(
+        x - 5,
+        y + altura - 47,
+        12,
+        29,
+        5,
+        "#111"
+    );
+
+    retangulo(
+        x + largura - 7,
+        y + altura - 47,
+        12,
+        29,
+        5,
+        "#111"
+    );
+
+
+    /* faróis */
+
+    retangulo(
+        x + 7,
+        y + 5,
+        13,
+        8,
+        3,
+        jogador
+            ? "#fff0a0"
+            : "#ff5151"
+    );
+
+    retangulo(
+        x + largura - 20,
+        y + 5,
+        13,
+        8,
+        3,
+        jogador
+            ? "#fff0a0"
+            : "#ff5151"
+    );
+
+
+    /* reflexo */
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.2)";
+
+    ctx.fillRect(
+        x + 13,
+        y + 20,
+        6,
+        18
+    );
+
+
+    /* detalhe do jogador */
+
+    if (jogador) {
+
+        ctx.fillStyle =
+            "#ffe13d";
+
+        ctx.fillRect(
+            x + 5,
+            y + altura - 7,
+            largura - 10,
+            4
+        );
+    }
+}
+
+
+/* =========================================================
+   ÁRVORE
+========================================================= */
+
+function desenharArvore(
+    x,
+    y,
+    escala
+) {
+
+    ctx.fillStyle =
+        "#65452d";
+
+    ctx.fillRect(
+        x - 5 * escala,
+        y + 15 * escala,
+        10 * escala,
+        35 * escala
+    );
+
+
+    ctx.fillStyle =
+        "#23723a";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        24 * escala,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle =
+        "#31954b";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x - 12 * escala,
+        y + 2 * escala,
+        15 * escala,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x + 12 * escala,
+        y + 3 * escala,
+        15 * escala,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+}
+
+
+/* =========================================================
+   CENÁRIO
+========================================================= */
+
+function desenharCenario() {
+
+    const gradiente =
+        ctx.createLinearGradient(
+            0,
+            0,
+            0,
+            H
+        );
+
+    gradiente.addColorStop(
+        0,
+        "#65bdf0"
+    );
+
+    gradiente.addColorStop(
+        0.5,
+        "#d9f1fa"
+    );
+
+    gradiente.addColorStop(
+        0.51,
+        "#69bd5c"
+    );
+
+    gradiente.addColorStop(
+        1,
+        "#398c43"
+    );
+
+    ctx.fillStyle =
+        gradiente;
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    /* sol */
+
+    ctx.fillStyle =
+        "#ffe58a";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        W * 0.82,
+        H * 0.14,
+        38,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    const r = pista();
+
+
+    /* árvores */
+
+    const distancia = 105;
+
+    for (
+        let y =
+            (-deslocamento * 0.6)
+            % distancia - 30;
+
+        y < H + distancia;
+
+        y += distancia
+    ) {
+
+        desenharArvore(
+            r.esquerda - 60,
+            y + 25,
+            1
+        );
+
+        desenharArvore(
+            r.direita + 60,
+            y + 50,
+            0.9
+        );
+    }
+
+
+    /* pista */
+
+    ctx.fillStyle =
+        "#30343a";
+
+    ctx.fillRect(
+        r.esquerda,
+        0,
+        r.largura,
+        H
+    );
+
+
+    /* bordas */
+
+    ctx.fillStyle =
+        "#d7d7d7";
+
+    ctx.fillRect(
+        r.esquerda,
+        0,
+        10,
+        H
+    );
+
+    ctx.fillRect(
+        r.direita - 10,
+        0,
+        10,
+        H
+    );
+
+
+    /* faixas vermelhas */
+
+    ctx.fillStyle =
+        "#e33b3b";
+
+    for (
+        let y =
+            (-deslocamento) % 36;
+
+        y < H + 36;
+
+        y += 72
+    ) {
+
+        ctx.fillRect(
+            r.esquerda,
+            y,
+            10,
+            36
+        );
+
+        ctx.fillRect(
+            r.direita - 10,
+            y,
+            10,
+            36
+        );
+    }
+
+
+    /* faixas centrais */
+
+    ctx.fillStyle =
+        "#eeeeee";
+
+    const faixas = [
+
+        r.esquerda +
+        r.largura / 4,
+
+        r.esquerda +
+        r.largura / 2,
+
+        r.esquerda +
+        r.largura * 3 / 4
+
+    ];
+
+
+    for (
+        let i = 0;
+        i < faixas.length;
+        i++
+    ) {
+
+        for (
+            let y =
+                (-deslocamento) %
+                110 - 80;
+
+            y < H + 110;
+
+            y += 110
+        ) {
+
+            ctx.fillRect(
+                faixas[i] - 4,
+                y,
+                8,
+                60
+            );
+        }
+    }
+}
+
+
+/* =========================================================
+   BOTÕES
+========================================================= */
+
+function desenharBotao(
+    x,
+    y,
+    largura,
+    altura,
+    simbolo,
+    ativo
+) {
+
+    retangulo(
+        x,
+        y,
+        largura,
+        altura,
+        14,
+        ativo
+            ? "#e0a82c"
+            : "rgba(20,28,40,.82)"
+    );
+
+    ctx.strokeStyle =
+        "rgba(255,255,255,.3)";
+
+    ctx.lineWidth = 2;
+
+    ctx.stroke();
+
+    texto(
+        simbolo,
+        38,
+        "#fff",
+        x + largura / 2,
+        y + altura / 2
+    );
+}
+
+
+function desenharControles() {
+
+    const botoes = {
+
+        esquerda: {
+            x: 30,
+            y: H - 100,
+            largura: 110,
+            altura: 65
+        },
+
+        direita: {
+            x: 155,
+            y: H - 100,
+            largura: 110,
+            altura: 65
+        },
+
+        cima: {
+            x: W - 135,
+            y: H - 175,
+            largura: 100,
+            altura: 65
+        },
+
+        baixo: {
+            x: W - 135,
+            y: H - 95,
+            largura: 100,
+            altura: 65
+        },
+
+        pausa: {
+            x: W - 80,
+            y: 18,
+            largura: 60,
+            altura: 48
         }
 
-        if (collides(player, e)) {
-            lives--;
-            respawn(e);
-            if (lives <= 0) {
-                if (score > record) {
-                    record = score;
-                    localStorage.setItem("corrida2d_recorde", record);
+    };
+
+
+    desenharBotao(
+        botoes.esquerda.x,
+        botoes.esquerda.y,
+        botoes.esquerda.largura,
+        botoes.esquerda.altura,
+        "‹",
+        controleAtivo("esquerda")
+    );
+
+
+    desenharBotao(
+        botoes.direita.x,
+        botoes.direita.y,
+        botoes.direita.largura,
+        botoes.direita.altura,
+        "›",
+        controleAtivo("direita")
+    );
+
+
+    desenharBotao(
+        botoes.cima.x,
+        botoes.cima.y,
+        botoes.cima.largura,
+        botoes.cima.altura,
+        "↑",
+        controleAtivo("cima")
+    );
+
+
+    desenharBotao(
+        botoes.baixo.x,
+        botoes.baixo.y,
+        botoes.baixo.largura,
+        botoes.baixo.altura,
+        "↓",
+        controleAtivo("baixo")
+    );
+
+
+    desenharBotao(
+        botoes.pausa.x,
+        botoes.pausa.y,
+        botoes.pausa.largura,
+        botoes.pausa.altura,
+        pausado ? "▶" : "Ⅱ",
+        false
+    );
+
+    return botoes;
+}
+
+
+/* =========================================================
+   HUD
+========================================================= */
+
+function desenharHUD() {
+
+    retangulo(
+        14,
+        14,
+        260,
+        75,
+        13,
+        "rgba(10,17,27,.75)"
+    );
+
+    texto(
+        "PONTOS",
+        14,
+        "#aeb8c5",
+        32,
+        34
+    );
+
+    texto(
+        String(pontos),
+        27,
+        "#fff",
+        32,
+        62
+    );
+
+
+    texto(
+        "VIDAS",
+        14,
+        "#aeb8c5",
+        128,
+        34
+    );
+
+
+    for (
+        let i = 0;
+        i < 3;
+        i++
+    ) {
+
+        texto(
+            i < vidas ? "♥" : "♡",
+            22,
+            i < vidas
+                ? "#ff5360"
+                : "#657080",
+            130 + i * 24,
+            62
+        );
+    }
+
+
+    retangulo(
+        W - 145,
+        14,
+        130,
+        75,
+        13,
+        "rgba(10,17,27,.75)"
+    );
+
+
+    texto(
+        "VELOCIDADE",
+        11,
+        "#aeb8c5",
+        W - 80,
+        33
+    );
+
+
+    texto(
+        Math.floor(
+            velocidade * 12
+        ) + " km/h",
+        21,
+        "#ffd43d",
+        W - 80,
+        62
+    );
+}
+
+
+/* =========================================================
+   MENU
+========================================================= */
+
+function desenharMenu() {
+
+    ctx.fillStyle =
+        "#101722";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    texto(
+        "CORRIDA",
+        Math.min(72, W * 0.08),
+        "#fff",
+        W / 2,
+        H * 0.20
+    );
+
+
+    texto(
+        "2D",
+        Math.min(82, W * 0.10),
+        "#ffd43b",
+        W / 2,
+        H * 0.31
+    );
+
+
+    texto(
+        "TURBO",
+        25,
+        "#91a3ba",
+        W / 2,
+        H * 0.38
+    );
+
+
+    const botao = {
+
+        x: W / 2 - 145,
+
+        y: H * 0.50,
+
+        largura: 290,
+
+        altura: 75
+
+    };
+
+
+    retangulo(
+        botao.x,
+        botao.y,
+        botao.largura,
+        botao.altura,
+        17,
+        "#27a75b"
+    );
+
+
+    texto(
+        "▶  JOGAR",
+        33,
+        "#fff",
+        W / 2,
+        botao.y +
+        botao.altura / 2
+    );
+
+
+    texto(
+        "RECORDE  " + recorde,
+        23,
+        "#ffd43b",
+        W / 2,
+        H * 0.67
+    );
+
+
+    texto(
+        "WASD / SETAS  •  TOQUE",
+        17,
+        "#aab7c7",
+        W / 2,
+        H * 0.74
+    );
+
+
+    desenharCarro(
+        W / 2 - 28,
+        H * 0.81,
+        56,
+        92,
+        "#e23838",
+        true
+    );
+}
+
+
+/* =========================================================
+   JOGO
+========================================================= */
+
+function desenharJogo() {
+
+    desenharCenario();
+
+
+    for (
+        let i = 0;
+        i < inimigos.length;
+        i++
+    ) {
+
+        const inimigo =
+            inimigos[i];
+
+        desenharCarro(
+            inimigo.x,
+            inimigo.y,
+            inimigo.largura,
+            inimigo.altura,
+            inimigo.cor,
+            false
+        );
+    }
+
+
+    desenharCarro(
+        jogador.x,
+        jogador.y,
+        jogador.largura,
+        jogador.altura,
+        "#e23838",
+        true
+    );
+
+
+    for (
+        let i = 0;
+        i < particulas.length;
+        i++
+    ) {
+
+        const p =
+            particulas[i];
+
+        ctx.fillStyle =
+            "rgba(255,215,70," +
+            Math.max(
+                0,
+                p.vida * 2
+            ) +
+            ")";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x,
+            p.y,
+            3,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    }
+
+
+    desenharHUD();
+
+    desenharControles();
+
+
+    if (pausado) {
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.62)";
+
+        ctx.fillRect(
+            0,
+            0,
+            W,
+            H
+        );
+
+
+        retangulo(
+            W / 2 - 190,
+            H / 2 - 75,
+            380,
+            150,
+            20,
+            "#182131"
+        );
+
+
+        texto(
+            "PAUSADO",
+            43,
+            "#fff",
+            W / 2,
+            H / 2 - 20
+        );
+
+
+        texto(
+            "Toque em Ⅱ para continuar",
+            19,
+            "#aeb9c5",
+            W / 2,
+            H / 2 + 30
+        );
+    }
+}
+
+
+/* =========================================================
+   GAME OVER
+========================================================= */
+
+function desenharGameOver() {
+
+    ctx.fillStyle =
+        "#111722";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    texto(
+        "FIM DE JOGO",
+        Math.min(
+            62,
+            W * 0.07
+        ),
+        "#ff5360",
+        W / 2,
+        H * 0.25
+    );
+
+
+    texto(
+        "PONTOS",
+        18,
+        "#aeb9c5",
+        W / 2,
+        H * 0.39
+    );
+
+
+    texto(
+        String(pontos),
+        48,
+        "#fff",
+        W / 2,
+        H * 0.46
+    );
+
+
+    texto(
+        "Recorde: " + recorde,
+        27,
+        "#ffd43b",
+        W / 2,
+        H * 0.55
+    );
+
+
+    const botao = {
+
+        x: W / 2 - 150,
+
+        y: H * 0.66,
+
+        largura: 300,
+
+        altura: 72
+
+    };
+
+
+    retangulo(
+        botao.x,
+        botao.y,
+        botao.largura,
+        botao.altura,
+        17,
+        "#27a75b"
+    );
+
+
+    texto(
+        "↻  JOGAR NOVAMENTE",
+        24,
+        "#fff",
+        W / 2,
+        botao.y +
+        botao.altura / 2
+    );
+}
+
+
+/* =========================================================
+   CONTROLES
+========================================================= */
+
+function controleAtivo(
+    controle
+) {
+
+    return (
+        teclado[controle] ||
+        toque[controle]
+    );
+}
+
+
+function limparControles() {
+
+    teclado.esquerda = false;
+    teclado.direita = false;
+    teclado.cima = false;
+    teclado.baixo = false;
+
+    toque.esquerda = false;
+    toque.direita = false;
+    toque.cima = false;
+    toque.baixo = false;
+}
+
+
+/* =========================================================
+   TOQUE / MOUSE
+========================================================= */
+
+function pontoDoEvento(
+    evento
+) {
+
+    const r =
+        canvas.getBoundingClientRect();
+
+    return {
+
+        x:
+            (evento.clientX - r.left) *
+            (W / r.width),
+
+        y:
+            (evento.clientY - r.top) *
+            (H / r.height)
+
+    };
+}
+
+
+function estaDentro(
+    botao,
+    x,
+    y
+) {
+
+    return (
+
+        x >= botao.x &&
+
+        x <=
+        botao.x +
+        botao.largura &&
+
+        y >= botao.y &&
+
+        y <=
+        botao.y +
+        botao.altura
+
+    );
+}
+
+
+function processarToque(
+    x,
+    y
+) {
+
+    if (estado === "menu") {
+
+        const botao = {
+
+            x: W / 2 - 145,
+
+            y: H * 0.50,
+
+            largura: 290,
+
+            altura: 75
+
+        };
+
+        if (
+            estaDentro(
+                botao,
+                x,
+                y
+            )
+        ) {
+
+            iniciarJogo();
+        }
+
+        return;
+    }
+
+
+    if (estado === "gameover") {
+
+        const botao = {
+
+            x: W / 2 - 150,
+
+            y: H * 0.66,
+
+            largura: 300,
+
+            altura: 72
+
+        };
+
+        if (
+            estaDentro(
+                botao,
+                x,
+                y
+            )
+        ) {
+
+            iniciarJogo();
+        }
+
+        return;
+    }
+
+
+    const botoes = {
+
+        esquerda: {
+            x: 30,
+            y: H - 100,
+            largura: 110,
+            altura: 65
+        },
+
+        direita: {
+            x: 155,
+            y: H - 100,
+            largura: 110,
+            altura: 65
+        },
+
+        cima: {
+            x: W - 135,
+            y: H - 175,
+            largura: 100,
+            altura: 65
+        },
+
+        baixo: {
+            x: W - 135,
+            y: H - 95,
+            largura: 100,
+            altura: 65
+        },
+
+        pausa: {
+            x: W - 80,
+            y: 18,
+            largura: 60,
+            altura: 48
+        }
+
+    };
+
+
+    if (
+        estaDentro(
+            botoes.pausa,
+            x,
+            y
+        )
+    ) {
+
+        pausado =
+            !pausado;
+
+        return;
+    }
+
+
+    if (pausado) return;
+
+
+    if (
+        estaDentro(
+            botoes.esquerda,
+            x,
+            y
+        )
+    ) {
+
+        toque.esquerda = true;
+
+    } else if (
+        estaDentro(
+            botoes.direita,
+            x,
+            y
+        )
+    ) {
+
+        toque.direita = true;
+
+    } else if (
+        estaDentro(
+            botoes.cima,
+            x,
+            y
+        )
+    ) {
+
+        toque.cima = true;
+
+    } else if (
+        estaDentro(
+            botoes.baixo,
+            x,
+            y
+        )
+    ) {
+
+        toque.baixo = true;
+    }
+}
+
+
+canvas.addEventListener(
+    "pointerdown",
+    function (evento) {
+
+        evento.preventDefault();
+
+        const ponto =
+            pontoDoEvento(
+                evento
+            );
+
+        processarToque(
+            ponto.x,
+            ponto.y
+        );
+    }
+);
+
+
+canvas.addEventListener(
+    "pointerup",
+    function (evento) {
+
+        evento.preventDefault();
+
+        limparControles();
+    }
+);
+
+
+canvas.addEventListener(
+    "pointercancel",
+    limparControles
+);
+
+
+/* =========================================================
+   TECLADO
+========================================================= */
+
+window.addEventListener(
+    "keydown",
+    function (evento) {
+
+        const tecla =
+            evento.key.toLowerCase();
+
+
+        if (
+            tecla === "a" ||
+            evento.key === "ArrowLeft"
+        ) {
+
+            teclado.esquerda = true;
+        }
+
+
+        if (
+            tecla === "d" ||
+            evento.key === "ArrowRight"
+        ) {
+
+            teclado.direita = true;
+        }
+
+
+        if (
+            tecla === "w" ||
+            evento.key === "ArrowUp"
+        ) {
+
+            teclado.cima = true;
+        }
+
+
+        if (
+            tecla === "s" ||
+            evento.key === "ArrowDown"
+        ) {
+
+            teclado.baixo = true;
+        }
+
+
+        if (
+            evento.key === "Escape" &&
+            estado === "jogando"
+        ) {
+
+            pausado =
+                !pausado;
+        }
+    }
+);
+
+
+window.addEventListener(
+    "keyup",
+    function (evento) {
+
+        const tecla =
+            evento.key.toLowerCase();
+
+
+        if (
+            tecla === "a" ||
+            evento.key === "ArrowLeft"
+        ) {
+
+            teclado.esquerda = false;
+        }
+
+
+        if (
+            tecla === "d" ||
+            evento.key === "ArrowRight"
+        ) {
+
+            teclado.direita = false;
+        }
+
+
+        if (
+            tecla === "w" ||
+            evento.key === "ArrowUp"
+        ) {
+
+            teclado.cima = false;
+        }
+
+
+        if (
+            tecla === "s" ||
+            evento.key === "ArrowDown"
+        ) {
+
+            teclado.baixo = false;
+        }
+    }
+);
+
+
+/* =========================================================
+   ATUALIZAÇÃO
+========================================================= */
+
+let ultimoTempo =
+    performance.now();
+
+
+function atualizar() {
+
+    const agora =
+        performance.now();
+
+    let delta =
+        (agora - ultimoTempo) /
+        1000;
+
+    ultimoTempo =
+        agora;
+
+    if (delta > 0.05) {
+        delta = 0.05;
+    }
+
+
+    if (
+        estado === "jogando" &&
+        !pausado
+    ) {
+
+        if (
+            controleAtivo("cima")
+        ) {
+
+            velocidade +=
+                0.12 *
+                delta *
+                60;
+        }
+
+
+        if (
+            controleAtivo("baixo")
+        ) {
+
+            velocidade -=
+                0.12 *
+                delta *
+                60;
+        }
+
+
+        velocidade =
+            Math.max(
+                2,
+                Math.min(
+                    15,
+                    velocidade
+                )
+            );
+
+
+        if (
+            controleAtivo(
+                "esquerda"
+            )
+        ) {
+
+            jogador.x -=
+                7 *
+                delta *
+                60;
+        }
+
+
+        if (
+            controleAtivo(
+                "direita"
+            )
+        ) {
+
+            jogador.x +=
+                7 *
+                delta *
+                60;
+        }
+
+
+        limitarJogador();
+
+
+        deslocamento +=
+            velocidade *
+            delta *
+            60;
+
+        deslocamento %=
+            110;
+
+
+        for (
+            let i = 0;
+            i < inimigos.length;
+            i++
+        ) {
+
+            const inimigo =
+                inimigos[i];
+
+
+            inimigo.y +=
+                (
+                    inimigo.velocidade +
+                    velocidade
+                ) *
+                delta *
+                60;
+
+
+            if (
+                inimigo.y >
+                H + 100
+            ) {
+
+                reposicionarInimigo(
+                    inimigo,
+                    false
+                );
+
+                pontos += 10;
+            }
+
+
+            if (
+                colidiu(
+                    jogador,
+                    inimigo
+                )
+            ) {
+
+                vidas--;
+
+                criarExplosao(
+                    inimigo.x +
+                    inimigo.largura / 2,
+
+                    inimigo.y +
+                    inimigo.altura / 2
+                );
+
+
+                reposicionarInimigo(
+                    inimigo,
+                    false
+                );
+
+
+                if (vidas <= 0) {
+
+                    if (
+                        pontos >
+                        recorde
+                    ) {
+
+                        recorde =
+                            pontos;
+
+                        try {
+
+                            localStorage.setItem(
+                                "corrida2d_recorde",
+                                String(recorde)
+                            );
+
+                        } catch (erro) {}
+                    }
+
+
+                    estado =
+                        "gameover";
+
+                    limparControles();
                 }
-                state = "gameover";
-                controls.left = controls.right = controls.forward = controls.backward = false;
-                break;
+            }
+        }
+
+
+        for (
+            let i =
+                particulas.length - 1;
+
+            i >= 0;
+
+            i--
+        ) {
+
+            const p =
+                particulas[i];
+
+            p.x +=
+                p.velocidadeX *
+                delta *
+                60;
+
+            p.y +=
+                p.velocidadeY *
+                delta *
+                60;
+
+            p.vida -=
+                delta;
+
+
+            if (
+                p.vida <= 0
+            ) {
+
+                particulas.splice(
+                    i,
+                    1
+                );
             }
         }
     }
 
-    if (score > 0 && score % 100 === 0) {
-        maxSpeed = Math.min(20, maxSpeed + 0.01);
+
+    desenhar();
+
+    requestAnimationFrame(
+        atualizar
+    );
+}
+
+
+/* =========================================================
+   EXPLOSÃO
+========================================================= */
+
+function criarExplosao(
+    x,
+    y
+) {
+
+    for (
+        let i = 0;
+        i < 15;
+        i++
+    ) {
+
+        const angulo =
+            Math.random() *
+            Math.PI *
+            2;
+
+        const velocidadeParticula =
+            2 +
+            Math.random() *
+            4;
+
+
+        particulas.push({
+
+            x: x,
+
+            y: y,
+
+            velocidadeX:
+                Math.cos(angulo) *
+                velocidadeParticula,
+
+            velocidadeY:
+                Math.sin(angulo) *
+                velocidadeParticula,
+
+            vida: 0.5
+        });
     }
 }
 
-function collides(a, b) {
-    const pad = 8;
-    return a.x+pad < b.x+b.w-pad &&
-           a.x+a.w-pad > b.x+pad &&
-           a.y+pad < b.y+b.h-pad &&
-           a.y+a.h-pad > b.y+pad;
-}
 
-function drawCar(x, y, w, h, color) {
-    ctx.fillStyle = color;
-    roundRect(x, y, w, h, 10);
-    ctx.fill();
+/* =========================================================
+   DESENHAR
+========================================================= */
 
-    ctx.fillStyle = "#64b4dc";
-    roundRect(x+10, y+12, w-20, 25, 5);
-    ctx.fill();
+function desenhar() {
 
-    ctx.fillStyle = "#468cb4";
-    roundRect(x+10, y+h-35, w-20, 20, 5);
-    ctx.fill();
+    if (
+        estado === "menu"
+    ) {
 
-    ctx.fillStyle = COLORS.black;
-    roundRect(x-5, y+15, 12, 30, 5); ctx.fill();
-    roundRect(x+w-7, y+15, 12, 30, 5); ctx.fill();
-    roundRect(x-5, y+h-45, 12, 30, 5); ctx.fill();
-    roundRect(x+w-7, y+h-45, 12, 30, 5); ctx.fill();
-}
+        desenharMenu();
 
-function roundRect(x,y,w,h,r) {
-    ctx.beginPath();
-    ctx.roundRect(x,y,w,h,r);
-}
+    } else if (
+        estado === "jogando"
+    ) {
 
-function drawScene() {
-    ctx.fillStyle = COLORS.grass;
-    ctx.fillRect(0,0,W,H);
+        desenharJogo();
 
-    const center = W/2;
-    const left = center - 240;
-    const right = center + 240;
+    } else {
 
-    ctx.fillStyle = COLORS.road;
-    ctx.fillRect(left,0,480,H);
-
-    ctx.fillStyle = COLORS.white;
-    ctx.fillRect(left,0,8,H);
-    ctx.fillRect(right-8,0,8,H);
-
-    let start = -100 + offset;
-    while (start < H) {
-        for (const lane of [-1,0,1]) {
-            const x = center + lane*120;
-            ctx.fillRect(x-5,start,10,60);
-        }
-        start += 105;
+        desenharGameOver();
     }
 }
 
-function drawButton(r, label) {
-    ctx.fillStyle = "rgba(100,100,100,.82)";
-    roundRect(r.x,r.y,r.w,r.h,15); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 50px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, r.x+r.w/2, r.y+r.h/2);
-}
 
-function drawControls() {
-    drawButton(buttons.left, "‹");
-    drawButton(buttons.right, "›");
-    drawButton(buttons.forward, "↑");
-    drawButton(buttons.backward, "↓");
+/* =========================================================
+   INICIAR
+========================================================= */
 
-    ctx.fillStyle = "rgba(100,100,100,.82)";
-    roundRect(buttons.pause.x,buttons.pause.y,buttons.pause.w,buttons.pause.h,10); ctx.fill();
-    ctx.fillStyle="#fff";
-    ctx.font="bold 28px Arial";
-    ctx.fillText("Ⅱ",buttons.pause.x+buttons.pause.w/2,buttons.pause.y+buttons.pause.h/2);
-}
+desenhar();
 
-function text(t, size, color, x, y) {
-    ctx.fillStyle = color;
-    ctx.font = `bold ${size}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(t,x,y);
-}
+requestAnimationFrame(
+    atualizar
+);
 
-function drawMenu() {
-    ctx.fillStyle="#191923"; ctx.fillRect(0,0,W,H);
-    text("CORRIDA 2D", Math.min(70,W/10), "#fff", W/2, H*.20);
-    text("JOGO DE CORRIDA", Math.min(45,W/16), COLORS.yellow, W/2, H*.32);
-
-    const b = {x:W/2-130,y:H*.47,w:260,h:70};
-    ctx.fillStyle=COLORS.grass; roundRect(b.x,b.y,b.w,b.h,15); ctx.fill();
-    text("JOGAR", 40, "#fff", b.x+b.w/2,b.y+b.h/2);
-
-    text("Recorde: " + record, 30, "#fff", W/2,H*.67);
-    text("Toque nos controles para jogar", 22, "#fff", W/2,H*.76);
-}
-
-function drawGame() {
-    drawScene();
-
-    for (const e of enemies) drawCar(e.x,e.y,e.w,e.h,e.color);
-    drawCar(player.x,player.y,player.w,player.h,COLORS.red);
-
-    ctx.textAlign="left";
-    ctx.textBaseline="middle";
-    ctx.font="bold 28px Arial";
-    ctx.fillStyle="#fff";
-    ctx.fillText("Pontos: "+score,20,28);
-    ctx.fillText("Vidas: "+lives,20,60);
-    ctx.fillText("Vel: "+Math.floor(roadSpeed),130,28);
-
-    drawControls();
-
-    if (paused) {
-        ctx.fillStyle="rgba(0,0,0,.65)";
-        ctx.fillRect(0,0,W,H);
-        text("PAUSADO", Math.min(70,W/9), "#fff",W/2,H/2);
-        text("Toque em Ⅱ para continuar", 24, "#fff",W/2,H/2+70);
-    }
-}
-
-function drawGameOver() {
-    ctx.fillStyle="#1e1414"; ctx.fillRect(0,0,W,H);
-    text("FIM DE JOGO", Math.min(65,W/9), COLORS.red,W/2,H*.25);
-    text("Pontos: "+score,45,"#fff",W/2,H*.39);
-    text("Recorde: "+record,40,COLORS.yellow,W/2,H*.48);
-
-    const b={x:W/2-140,y:H*.62,w:280,h:70};
-    ctx.fillStyle=COLORS.grass; roundRect(b.x,b.y,b.w,b.h,15); ctx.fill();
-    text("JOGAR NOVAMENTE",28,"#fff",b.x+b.w/2,b.y+b.h/2);
-}
-
-function draw() {
-    if (state==="menu") drawMenu();
-    else if (state==="playing") drawGame();
-    else drawGameOver();
-}
-
-function pointerPos(e) {
-    const rect=canvas.getBoundingClientRect();
-    return {
-        x:(e.clientX-rect.left)*(W/rect.width),
-        y:(e.clientY-rect.top)*(H/rect.height)
-    };
-}
-
-function handleDown(x,y) {
-    if (state==="menu") {
-        const b={x:W/2-130,y:H*.47,w:260,h:70};
-        if (rectContains(b,x,y)) startGame();
-        return;
-    }
-
-    if (state==="gameover") {
-        const b={x:W/2-140,y:H*.62,w:280,h:70};
-        if (rectContains(b,x,y)) startGame();
-        return;
-    }
-
-    if (rectContains(buttons.pause,x,y)) {
-        paused=!paused;
-        return;
-    }
-    if (paused) return;
-
-    if (rectContains(buttons.left,x,y)) controls.left=true;
-    else if (rectContains(buttons.right,x,y)) controls.right=true;
-    else if (rectContains(buttons.forward,x,y)) controls.forward=true;
-    else if (rectContains(buttons.backward,x,y)) controls.backward=true;
-}
-
-function clearControls() {
-    controls.left=controls.right=controls.forward=controls.backward=false;
-}
-
-canvas.addEventListener("pointerdown", e => {
-    e.preventDefault();
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-    const p=pointerPos(e);
-    handleDown(p.x,p.y);
-});
-
-canvas.addEventListener("pointerup", e => {
-    e.preventDefault();
-    clearControls();
-});
-
-canvas.addEventListener("pointercancel", clearControls);
-canvas.addEventListener("pointerleave", e => {
-    if (e.buttons) clearControls();
-});
-
-addEventListener("keydown", e => {
-    if (e.key==="ArrowLeft" || e.key.toLowerCase()==="a") controls.left=true;
-    if (e.key==="ArrowRight" || e.key.toLowerCase()==="d") controls.right=true;
-    if (e.key==="ArrowUp" || e.key.toLowerCase()==="w") controls.forward=true;
-    if (e.key==="ArrowDown" || e.key.toLowerCase()==="s") controls.backward=true;
-    if (e.key==="Escape" && state==="playing") paused=!paused;
-});
-
-addEventListener("keyup", e => {
-    if (e.key==="ArrowLeft" || e.key.toLowerCase()==="a") controls.left=false;
-    if (e.key==="ArrowRight" || e.key.toLowerCase()==="d") controls.right=false;
-    if (e.key==="ArrowUp" || e.key.toLowerCase()==="w") controls.forward=false;
-    if (e.key==="ArrowDown" || e.key.toLowerCase()==="s") controls.backward=false;
-});
-
-let last=performance.now();
-function loop(now) {
-    const dt=Math.min((now-last)/1000,0.05);
-    last=now;
-    update(dt);
-    draw();
-    requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
 </script>
+
 </body>
 </html>
