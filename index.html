@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Corrida 2D</title>
+<style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        overflow: hidden; background: #191923;
+        font-family: Arial, sans-serif; touch-action: none;
+    }
+    #game {
+        display: block; width: 100vw; height: 100vh;
+    }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let W = innerWidth, H = innerHeight;
+let dpr = Math.min(devicePixelRatio || 1, 2);
+
+function resize() {
+    W = innerWidth;
+    H = innerHeight;
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (player) {
+        player.y = H - 180;
+        clampPlayer();
+    }
+    updateButtons();
+}
+addEventListener("resize", resize);
+resize();
+
+const COLORS = {
+    grass: "#1e963c",
+    road: "#373737",
+    white: "#ffffff",
+    black: "#141414",
+    red: "#dc3232",
+    blue: "#3264dc",
+    yellow: "#f0dc32",
+    orange: "#f0821e",
+    purple: "#9632b4",
+    cyan: "#1eb4b4",
+    gray: "#646464"
+};
+
+let state = "menu";
+let paused = false;
+let score = 0;
+let lives = 3;
+let roadSpeed = 5;
+let minSpeed = 2;
+let maxSpeed = 15;
+let offset = 0;
+let record = Number(localStorage.getItem("corrida2d_recorde") || 0);
+
+let controls = {
+    left: false,
+    right: false,
+    forward: false,
+    backward: false
+};
+
+let player = null;
+let enemies = [];
+
+const buttons = {};
+
+function updateButtons() {
+    buttons.left = {x: 40, y: H - 100, w: 120, h: 70};
+    buttons.right = {x: 180, y: H - 100, w: 120, h: 70};
+    buttons.forward = {x: W - 150, y: H - 180, w: 100, h: 70};
+    buttons.backward = {x: W - 150, y: H - 95, w: 100, h: 70};
+    buttons.pause = {x: W - 90, y: 20, w: 70, h: 50};
+}
+
+function rectContains(r, x, y) {
+    return x >= r.x && x <= r.x+r.w && y >= r.y && y <= r.y+r.h;
+}
+
+function startGame() {
+    score = 0;
+    lives = 3;
+    roadSpeed = 5;
+    maxSpeed = 15;
+    offset = 0;
+    paused = false;
+    controls.left = controls.right = controls.forward = controls.backward = false;
+
+    player = {
+        x: W/2 - 27.5,
+        y: H - 180,
+        w: 55,
+        h: 90,
+        speed: 7
+    };
+
+    enemies = [];
+    for (let i = 0; i < 4; i++) enemies.push(newEnemy());
+
+    state = "playing";
+}
+
+function newEnemy() {
+    const e = {
+        x: 0, y: 0, w: 55, h: 90,
+        speed: 5 + Math.random() * 3,
+        color: [COLORS.blue, COLORS.yellow, COLORS.orange, COLORS.purple, COLORS.cyan][Math.floor(Math.random()*5)]
+    };
+    respawn(e);
+    return e;
+}
+
+function respawn(e) {
+    const center = W/2;
+    const left = center - 190;
+    const right = center + 190 - e.w;
+    e.x = left + Math.random() * Math.max(1, right-left);
+    e.y = -150 - Math.random() * 550;
+}
+
+function clampPlayer() {
+    if (!player) return;
+    const left = W/2 - 220;
+    const right = W/2 + 220 - player.w;
+    player.x = Math.max(left, Math.min(right, player.x));
+    player.y = H - 180;
+}
+
+function update(dt) {
+    if (state !== "playing" || paused) return;
+
+    if (controls.forward) roadSpeed += 0.15 * dt * 60;
+    if (controls.backward) roadSpeed -= 0.15 * dt * 60;
+    roadSpeed = Math.max(minSpeed, Math.min(maxSpeed, roadSpeed));
+
+    if (controls.left) player.x -= player.speed * dt * 60;
+    if (controls.right) player.x += player.speed * dt * 60;
+    clampPlayer();
+
+    offset += roadSpeed * dt * 60;
+    if (offset >= 105) offset %= 105;
+
+    for (const e of enemies) {
+        e.y += (e.speed + roadSpeed) * dt * 60;
+
+        if (e.y > H + 100) {
+            respawn(e);
+            score += 10;
+        }
+
+        if (collides(player, e)) {
+            lives--;
+            respawn(e);
+            if (lives <= 0) {
+                if (score > record) {
+                    record = score;
+                    localStorage.setItem("corrida2d_recorde", record);
+                }
+                state = "gameover";
+                controls.left = controls.right = controls.forward = controls.backward = false;
+                break;
+            }
+        }
+    }
+
+    if (score > 0 && score % 100 === 0) {
+        maxSpeed = Math.min(20, maxSpeed + 0.01);
+    }
+}
+
+function collides(a, b) {
+    const pad = 8;
+    return a.x+pad < b.x+b.w-pad &&
+           a.x+a.w-pad > b.x+pad &&
+           a.y+pad < b.y+b.h-pad &&
+           a.y+a.h-pad > b.y+pad;
+}
+
+function drawCar(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    roundRect(x, y, w, h, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "#64b4dc";
+    roundRect(x+10, y+12, w-20, 25, 5);
+    ctx.fill();
+
+    ctx.fillStyle = "#468cb4";
+    roundRect(x+10, y+h-35, w-20, 20, 5);
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.black;
+    roundRect(x-5, y+15, 12, 30, 5); ctx.fill();
+    roundRect(x+w-7, y+15, 12, 30, 5); ctx.fill();
+    roundRect(x-5, y+h-45, 12, 30, 5); ctx.fill();
+    roundRect(x+w-7, y+h-45, 12, 30, 5); ctx.fill();
+}
+
+function roundRect(x,y,w,h,r) {
+    ctx.beginPath();
+    ctx.roundRect(x,y,w,h,r);
+}
+
+function drawScene() {
+    ctx.fillStyle = COLORS.grass;
+    ctx.fillRect(0,0,W,H);
+
+    const center = W/2;
+    const left = center - 240;
+    const right = center + 240;
+
+    ctx.fillStyle = COLORS.road;
+    ctx.fillRect(left,0,480,H);
+
+    ctx.fillStyle = COLORS.white;
+    ctx.fillRect(left,0,8,H);
+    ctx.fillRect(right-8,0,8,H);
+
+    let start = -100 + offset;
+    while (start < H) {
+        for (const lane of [-1,0,1]) {
+            const x = center + lane*120;
+            ctx.fillRect(x-5,start,10,60);
+        }
+        start += 105;
+    }
+}
+
+function drawButton(r, label) {
+    ctx.fillStyle = "rgba(100,100,100,.82)";
+    roundRect(r.x,r.y,r.w,r.h,15); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 50px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, r.x+r.w/2, r.y+r.h/2);
+}
+
+function drawControls() {
+    drawButton(buttons.left, "‹");
+    drawButton(buttons.right, "›");
+    drawButton(buttons.forward, "↑");
+    drawButton(buttons.backward, "↓");
+
+    ctx.fillStyle = "rgba(100,100,100,.82)";
+    roundRect(buttons.pause.x,buttons.pause.y,buttons.pause.w,buttons.pause.h,10); ctx.fill();
+    ctx.fillStyle="#fff";
+    ctx.font="bold 28px Arial";
+    ctx.fillText("Ⅱ",buttons.pause.x+buttons.pause.w/2,buttons.pause.y+buttons.pause.h/2);
+}
+
+function text(t, size, color, x, y) {
+    ctx.fillStyle = color;
+    ctx.font = `bold ${size}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(t,x,y);
+}
+
+function drawMenu() {
+    ctx.fillStyle="#191923"; ctx.fillRect(0,0,W,H);
+    text("CORRIDA 2D", Math.min(70,W/10), "#fff", W/2, H*.20);
+    text("JOGO DE CORRIDA", Math.min(45,W/16), COLORS.yellow, W/2, H*.32);
+
+    const b = {x:W/2-130,y:H*.47,w:260,h:70};
+    ctx.fillStyle=COLORS.grass; roundRect(b.x,b.y,b.w,b.h,15); ctx.fill();
+    text("JOGAR", 40, "#fff", b.x+b.w/2,b.y+b.h/2);
+
+    text("Recorde: " + record, 30, "#fff", W/2,H*.67);
+    text("Toque nos controles para jogar", 22, "#fff", W/2,H*.76);
+}
+
+function drawGame() {
+    drawScene();
+
+    for (const e of enemies) drawCar(e.x,e.y,e.w,e.h,e.color);
+    drawCar(player.x,player.y,player.w,player.h,COLORS.red);
+
+    ctx.textAlign="left";
+    ctx.textBaseline="middle";
+    ctx.font="bold 28px Arial";
+    ctx.fillStyle="#fff";
+    ctx.fillText("Pontos: "+score,20,28);
+    ctx.fillText("Vidas: "+lives,20,60);
+    ctx.fillText("Vel: "+Math.floor(roadSpeed),130,28);
+
+    drawControls();
+
+    if (paused) {
+        ctx.fillStyle="rgba(0,0,0,.65)";
+        ctx.fillRect(0,0,W,H);
+        text("PAUSADO", Math.min(70,W/9), "#fff",W/2,H/2);
+        text("Toque em Ⅱ para continuar", 24, "#fff",W/2,H/2+70);
+    }
+}
+
+function drawGameOver() {
+    ctx.fillStyle="#1e1414"; ctx.fillRect(0,0,W,H);
+    text("FIM DE JOGO", Math.min(65,W/9), COLORS.red,W/2,H*.25);
+    text("Pontos: "+score,45,"#fff",W/2,H*.39);
+    text("Recorde: "+record,40,COLORS.yellow,W/2,H*.48);
+
+    const b={x:W/2-140,y:H*.62,w:280,h:70};
+    ctx.fillStyle=COLORS.grass; roundRect(b.x,b.y,b.w,b.h,15); ctx.fill();
+    text("JOGAR NOVAMENTE",28,"#fff",b.x+b.w/2,b.y+b.h/2);
+}
+
+function draw() {
+    if (state==="menu") drawMenu();
+    else if (state==="playing") drawGame();
+    else drawGameOver();
+}
+
+function pointerPos(e) {
+    const rect=canvas.getBoundingClientRect();
+    return {
+        x:(e.clientX-rect.left)*(W/rect.width),
+        y:(e.clientY-rect.top)*(H/rect.height)
+    };
+}
+
+function handleDown(x,y) {
+    if (state==="menu") {
+        const b={x:W/2-130,y:H*.47,w:260,h:70};
+        if (rectContains(b,x,y)) startGame();
+        return;
+    }
+
+    if (state==="gameover") {
+        const b={x:W/2-140,y:H*.62,w:280,h:70};
+        if (rectContains(b,x,y)) startGame();
+        return;
+    }
+
+    if (rectContains(buttons.pause,x,y)) {
+        paused=!paused;
+        return;
+    }
+    if (paused) return;
+
+    if (rectContains(buttons.left,x,y)) controls.left=true;
+    else if (rectContains(buttons.right,x,y)) controls.right=true;
+    else if (rectContains(buttons.forward,x,y)) controls.forward=true;
+    else if (rectContains(buttons.backward,x,y)) controls.backward=true;
+}
+
+function clearControls() {
+    controls.left=controls.right=controls.forward=controls.backward=false;
+}
+
+canvas.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    const p=pointerPos(e);
+    handleDown(p.x,p.y);
+});
+
+canvas.addEventListener("pointerup", e => {
+    e.preventDefault();
+    clearControls();
+});
+
+canvas.addEventListener("pointercancel", clearControls);
+canvas.addEventListener("pointerleave", e => {
+    if (e.buttons) clearControls();
+});
+
+addEventListener("keydown", e => {
+    if (e.key==="ArrowLeft" || e.key.toLowerCase()==="a") controls.left=true;
+    if (e.key==="ArrowRight" || e.key.toLowerCase()==="d") controls.right=true;
+    if (e.key==="ArrowUp" || e.key.toLowerCase()==="w") controls.forward=true;
+    if (e.key==="ArrowDown" || e.key.toLowerCase()==="s") controls.backward=true;
+    if (e.key==="Escape" && state==="playing") paused=!paused;
+});
+
+addEventListener("keyup", e => {
+    if (e.key==="ArrowLeft" || e.key.toLowerCase()==="a") controls.left=false;
+    if (e.key==="ArrowRight" || e.key.toLowerCase()==="d") controls.right=false;
+    if (e.key==="ArrowUp" || e.key.toLowerCase()==="w") controls.forward=false;
+    if (e.key==="ArrowDown" || e.key.toLowerCase()==="s") controls.backward=false;
+});
+
+let last=performance.now();
+function loop(now) {
+    const dt=Math.min((now-last)/1000,0.05);
+    last=now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
